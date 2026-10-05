@@ -1,0 +1,11 @@
+node_modules
+out
+dist
+test-results/
+playwright-report/
+
+# OS / editor
+.DS_Store
+*.log
+.env
+.env.*

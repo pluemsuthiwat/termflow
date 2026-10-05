@@ -1,0 +1,36 @@
+{
+  "name": "termflow",
+  "productName": "Termflow",
+  "version": "0.1.0",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "electron-vite build && playwright test"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "serialport": "^13.0.0",
+    "ssh2": "^1.17.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@serialport/binding-mock": "^10.2.2",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ssh2": "^1.15.6",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.5.1",
+    "electron-vite": "^5.0.0",
+    "playwright-core": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}
