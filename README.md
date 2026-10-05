@@ -56,3 +56,7 @@ Set `TERMFLOW_DATA_DIR` to use a different data directory.
 ## Next
 
 SFTP, port forwarding / jump host, snippets, import from `~/.ssh/config`, packaged `.app`.
+
+## License
+
+[MIT](LICENSE)
