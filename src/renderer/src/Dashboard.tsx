@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { nameOf, parentOf } from '../../shared/groups'
 import { hostAddress, isSerial } from '../../shared/hosts'
 import type { HostView, SerialPortInfo } from '../../shared/types'
@@ -22,6 +22,8 @@ import {
   IconTerminal,
   IconWarn
 } from './icons'
+import ScrollRow from './ScrollRow'
+import { fadeClass, useScrollEdges } from './scrollEdges'
 import type { Tab } from './TerminalView'
 // Same artwork as the app icon (both drawn by build/make-icon.py).
 import logo from './assets/logo.png'
@@ -34,6 +36,9 @@ interface Props {
   groups: string[]
   tabs: Tab[]
   version: string
+  /** A newer release found by the update check. */
+  updateVersion?: string
+  onAbout: () => void
   /** Group being browsed ('' = overview). */
   path: string
   onNavigate: (path: string) => void
@@ -118,6 +123,8 @@ export default function Dashboard(p: Props) {
   const [layout, setLayoutState] = useState<HostLayout>(loadLayout)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [confirm, setConfirm] = useState<Confirm | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef, 'y')
 
   const setLayout = (l: HostLayout) => {
     setLayoutState(l)
@@ -241,47 +248,49 @@ export default function Dashboard(p: Props) {
 
   const hostTable = (list: HostView[], showPath: boolean) => (
     <div className="dh-table-wrap">
-      <table className="dh-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Login</th>
-            <th>Last connected</th>
-            <th aria-label="Actions" />
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((h) => (
-            <tr
-              key={h.id}
-              className="dh-row"
-              tabIndex={0}
-              aria-label={`Connect to ${h.name || h.host}`}
-              onClick={() => p.onConnect(h)}
-              onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && p.onConnect(h)}
-              onContextMenu={(e) => openMenu(e, hostItems(h))}
-            >
-              <td>
-                <div className="dh-name-cell">
-                  {hostIcon(h)}
-                  <div className="dh-name-text">
-                    <div className="card-name">{h.name || h.host}</div>
-                    {showPath && h.group && <div className="dh-path">{crumbText(h.group)}</div>}
-                  </div>
-                </div>
-              </td>
-              <td className="mono">{address(h)}</td>
-              <td>
-                <span className="chip">{isSerial(h) ? 'console' : h.auth}</span>
-                {h.legacy && <span className="chip warn">legacy</span>}
-              </td>
-              <td className="muted">{when(h)}</td>
-              <td className="dh-actions-cell">{moreBtn(`Actions for ${h.name || h.host}`, hostItems(h))}</td>
+      <ScrollRow>
+        <table className="dh-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Login</th>
+              <th>Last connected</th>
+              <th aria-label="Actions" />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {list.map((h) => (
+              <tr
+                key={h.id}
+                className="dh-row"
+                tabIndex={0}
+                aria-label={`Connect to ${h.name || h.host}`}
+                onClick={() => p.onConnect(h)}
+                onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && p.onConnect(h)}
+                onContextMenu={(e) => openMenu(e, hostItems(h))}
+              >
+                <td>
+                  <div className="dh-name-cell">
+                    {hostIcon(h)}
+                    <div className="dh-name-text">
+                      <div className="card-name">{h.name || h.host}</div>
+                      {showPath && h.group && <div className="dh-path">{crumbText(h.group)}</div>}
+                    </div>
+                  </div>
+                </td>
+                <td className="mono">{address(h)}</td>
+                <td>
+                  <span className="chip">{isSerial(h) ? 'console' : h.auth}</span>
+                  {h.legacy && <span className="chip warn">legacy</span>}
+                </td>
+                <td className="muted">{when(h)}</td>
+                <td className="dh-actions-cell">{moreBtn(`Actions for ${h.name || h.host}`, hostItems(h))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollRow>
     </div>
   )
 
@@ -321,12 +330,21 @@ export default function Dashboard(p: Props) {
   // ---------- render ----------
 
   return (
-    <div className="dashboard">
+    <div className={`dashboard scroll-fade scroll-fade-y${fadeClass(edges)}`} ref={scrollRef}>
       <header className="dash-top">
         <div className="brand-row">
           <img className="brand-mark" src={logo} alt="" width={36} height={36} draggable={false} />
           <h1 className="brand">Termflow</h1>
-          {p.version && <span className="ver-chip">v{p.version}</span>}
+          {p.version && (
+            <button
+              className={`ver-chip${p.updateVersion ? ' has-update' : ''}`}
+              onClick={p.onAbout}
+              title={p.updateVersion ? `Termflow ${p.updateVersion} is available` : 'About Termflow and updates'}
+            >
+              v{p.version}
+              {p.updateVersion && <span className="ver-update">Update</span>}
+            </button>
+          )}
         </div>
         <div className="dash-actions">
           <button className="btn with-icon" onClick={() => window.shell.openLogsDir()} title="Open the session logs folder in Finder">
@@ -389,7 +407,7 @@ export default function Dashboard(p: Props) {
           <h2 className="dash-title">
             <IconPlug size={13} /> Console ports <span className="count">{p.serialPorts.length}</span>
           </h2>
-          <div className="recent-row">
+          <ScrollRow className="recent-row">
             {p.serialPorts.map((port) => (
               <button
                 key={port.path}
@@ -406,7 +424,7 @@ export default function Dashboard(p: Props) {
                 </span>
               </button>
             ))}
-          </div>
+          </ScrollRow>
         </section>
       )}
 
@@ -474,7 +492,7 @@ export default function Dashboard(p: Props) {
               <h2 className="dash-title">
                 <IconClock size={13} /> Recent
               </h2>
-              <div className="recent-row">
+              <ScrollRow className="recent-row">
                 {recent.map((h) => (
                   <button key={h.id} className="recent" onClick={() => p.onConnect(h)} title={`Connect to ${address(h)}`}>
                     {hostIcon(h)}
@@ -484,7 +502,7 @@ export default function Dashboard(p: Props) {
                     </span>
                   </button>
                 ))}
-              </div>
+              </ScrollRow>
             </section>
           )}
 

@@ -2,6 +2,12 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 import type { SerialSettings, SessionStatus } from '../../shared/types'
+import { IpHighlighter } from './ipHighlight'
+
+/** Terminal palette: one soft green for text, magenta for IPv4 addresses, on deep navy. */
+const BACKGROUND = '#141728'
+const TEXT_COLOR = '#3ccf6e'
+const IP_COLOR = '#e2479f'
 
 export interface Tab {
   sessionId: string
@@ -40,9 +46,14 @@ export default function TerminalView({ tab, active }: Props) {
       macOptionIsMeta: true,
       allowProposedApi: false,
       theme: {
-        background: '#14161a',
-        foreground: '#d7dae0',
-        cursor: '#7aa2f7',
+        background: BACKGROUND,
+        foreground: TEXT_COLOR,
+        cursor: TEXT_COLOR,
+        cursorAccent: BACKGROUND,
+        // Text green, see-through; shaped into a thin pill in styles.css.
+        scrollbarSliderBackground: 'rgba(60, 207, 110, 0.25)',
+        scrollbarSliderHoverBackground: 'rgba(60, 207, 110, 0.45)',
+        scrollbarSliderActiveBackground: 'rgba(60, 207, 110, 0.6)',
         selectionBackground: '#3b4261'
       }
     })
@@ -54,11 +65,13 @@ export default function TerminalView({ tab, active }: Props) {
     fitRef.current = fit
 
     const { sessionId } = tab
+    const ips = new IpHighlighter(IP_COLOR, (data) => term.write(data))
     const offData = window.shell.onData((id, data) => {
-      if (id === sessionId) term.write(data)
+      if (id === sessionId) ips.push(data)
     })
 
     const connect = (secret?: string): void => {
+      ips.reset()
       term.write(`\x1b[90mConnecting to ${tab.title}…\x1b[0m\r\n`)
       window.shell
         .connect({ sessionId, hostId: tab.hostId, secret, serial: tab.serial, rows: term.rows, cols: term.cols })
@@ -90,6 +103,7 @@ export default function TerminalView({ tab, active }: Props) {
     return () => {
       ro.disconnect()
       offData()
+      ips.dispose()
       inputSub.dispose()
       resizeSub.dispose()
       window.shell.close(sessionId)
@@ -123,5 +137,6 @@ export default function TerminalView({ tab, active }: Props) {
     }
   }, [active])
 
-  return <div className="term-pane" ref={el} hidden={!active} />
+  // The pane's padding shares the terminal background so the edges don't show a band.
+  return <div className="term-pane" ref={el} hidden={!active} style={{ background: BACKGROUND }} />
 }

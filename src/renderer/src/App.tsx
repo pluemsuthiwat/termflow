@@ -8,12 +8,15 @@ import {
   type HostView,
   type PromptRequest,
   type SerialPortInfo,
-  type SerialSettings
+  type SerialSettings,
+  type UpdateCheck
 } from '../../shared/types'
 import { isWithin, joinPath, nameOf, parentOf, rebase } from '../../shared/groups'
+import { AboutDialog } from './About'
 import Dashboard from './Dashboard'
 import { ConsoleDialog, GroupDialog, HostForm, PasswordDialog, PromptDialog } from './dialogs'
 import { IconGrid, IconPlug, IconSidebar } from './icons'
+import ScrollRow from './ScrollRow'
 import Sidebar from './Sidebar'
 import TerminalView, { type Tab } from './TerminalView'
 
@@ -75,6 +78,10 @@ export default function App() {
   const [newPort, setNewPort] = useState<SerialPortInfo | null>(null)
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [version, setVersion] = useState('')
+  const [aboutOpen, setAboutOpen] = useState(false)
+  // Latest release check (from the About dialog or the quiet check after launch).
+  const [update, setUpdate] = useState<UpdateCheck | null>(null)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -112,6 +119,7 @@ export default function App() {
     reload()
     window.shell.dataDir().then(setDataDir)
     window.shell.version().then(setVersion)
+    const offUpdate = window.shell.onUpdateAvailable(setUpdate)
     window.shell.listSerialPorts().then(setSerialPorts)
     const offPorts = window.shell.onSerialPorts((ports, added) => {
       setSerialPorts(ports)
@@ -138,6 +146,7 @@ export default function App() {
       offStatus()
       offPrompt()
       offPorts()
+      offUpdate()
     }
   }, [reload])
 
@@ -224,6 +233,20 @@ export default function App() {
     })
   }
 
+  // Bring the active tab into view when the tab strip is scrolled (⌘1–9, new session).
+  useEffect(() => {
+    document.querySelector('.tabbar-tabs .tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeId])
+
+  const checkForUpdate = async () => {
+    setCheckingUpdate(true)
+    try {
+      setUpdate(await window.shell.checkForUpdate())
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
   // Menu shortcuts from the main process: ⌘W close tab, ⌘1–9 switch tab, ⌘N new host.
   useEffect(() =>
     window.shell.onMenu((action, arg) => {
@@ -234,6 +257,11 @@ export default function App() {
       // Up one level while browsing groups on the dashboard.
       else if (action === 'back' && activeId === null && dashPath) setDashPath(parentOf(dashPath))
       else if (action === 'toggleSidebar') toggleSidebar()
+      else if (action === 'about') setAboutOpen(true)
+      else if (action === 'checkUpdate') {
+        setAboutOpen(true)
+        if (!checkingUpdate) void checkForUpdate()
+      }
       else if (action === 'sendBreak' && activeId && tabs.find((t) => t.sessionId === activeId)?.kind === 'serial')
         window.shell.sendBreak(activeId)
     })
@@ -355,38 +383,40 @@ export default function App() {
             <IconGrid size={14} />
             <span>Dashboard</span>
           </button>
-          {tabs.map((t, i) => (
-            <div
-              key={t.sessionId}
-              className={`tab ${t.sessionId === activeId ? 'active' : ''}`}
-              onClick={() => setActiveId(t.sessionId)}
-              title={`⌘${i + 1}`}
-            >
-              <span className={`dot ${t.status.state}`} />
-              <span className="tab-title">{t.title}</span>
-              {t.status.state === 'ready' && t.status.logFile && (
+          <ScrollRow className="tabbar-tabs">
+            {tabs.map((t, i) => (
+              <div
+                key={t.sessionId}
+                className={`tab ${t.sessionId === activeId ? 'active' : ''}`}
+                onClick={() => setActiveId(t.sessionId)}
+                title={`⌘${i + 1}`}
+              >
+                <span className={`dot ${t.status.state}`} />
+                <span className="tab-title">{t.title}</span>
+                {t.status.state === 'ready' && t.status.logFile && (
+                  <button
+                    className="rec"
+                    title={`Logging to ${t.status.logFile} — click to show in Finder`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (t.status.state === 'ready' && t.status.logFile) window.shell.revealLog(t.status.logFile)
+                    }}
+                  >
+                    REC
+                  </button>
+                )}
                 <button
-                  className="rec"
-                  title={`Logging to ${t.status.logFile} — click to show in Finder`}
+                  className="tab-close"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (t.status.state === 'ready' && t.status.logFile) window.shell.revealLog(t.status.logFile)
+                    closeTab(t.sessionId)
                   }}
                 >
-                  REC
+                  ✕
                 </button>
-              )}
-              <button
-                className="tab-close"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  closeTab(t.sessionId)
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+              </div>
+            ))}
+          </ScrollRow>
         </div>
         <div className="terminals">
           {activeId === null && (
@@ -409,6 +439,8 @@ export default function App() {
               onOpenPort={openPort}
               onOpenConsole={() => setConsoleOpen(true)}
               version={version}
+              updateVersion={update?.state === 'available' ? update.latest : undefined}
+              onAbout={() => setAboutOpen(true)}
             />
           )}
           {tabs.map((t) => (
@@ -466,6 +498,14 @@ export default function App() {
             ✕
           </button>
         </div>
+      )}
+      {aboutOpen && (
+        <AboutDialog
+          update={update}
+          checking={checkingUpdate}
+          onCheck={checkForUpdate}
+          onClose={() => setAboutOpen(false)}
+        />
       )}
       {consoleOpen && (
         <ConsoleDialog

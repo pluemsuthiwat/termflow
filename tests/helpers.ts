@@ -280,11 +280,14 @@ export async function launchApp(dataDir: string, env: Record<string, string | un
     args: [APP_DIR],
     cwd: APP_DIR,
     executablePath: process.env.TERMFLOW_EXECUTABLE || undefined,
-    // Serial tests use simulated ports; no test touches real hardware.
-    env: { ...(process.env as Record<string, string>), TERMFLOW_DATA_DIR: dataDir, TERMFLOW_SERIAL_MOCK: '1', ...env } as Record<
-      string,
-      string
-    >
+    // Serial tests use simulated ports; no test touches real hardware or asks GitHub for updates.
+    env: {
+      ...(process.env as Record<string, string>),
+      TERMFLOW_DATA_DIR: dataDir,
+      TERMFLOW_SERIAL_MOCK: '1',
+      TERMFLOW_NO_UPDATE_CHECK: '1',
+      ...env
+    } as Record<string, string>
   })
   const win = await app.firstWindow()
   // The tab bar is always shown; the sidebar may be hidden.

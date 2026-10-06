@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { portName } from '../../shared/hosts'
 import { IconFolder } from './icons'
+import { fadeClass, useScrollEdges } from './scrollEdges'
 import {
   DEFAULT_SERIAL,
   type HostInput,
@@ -11,14 +12,16 @@ import {
   type SerialSettings
 } from '../../shared/types'
 
-function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose?: () => void }) {
+export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose?: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(ref, 'y')
   return (
     <div
       className="overlay"
       onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
       onKeyDown={(e) => e.key === 'Escape' && onClose?.()}
     >
-      <div className="modal" role="dialog" aria-label={title}>
+      <div className={`modal scroll-fade scroll-fade-y${fadeClass(edges)}`} role="dialog" aria-label={title} ref={ref}>
         <h2>{title}</h2>
         {children}
       </div>

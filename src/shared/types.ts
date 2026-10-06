@@ -114,6 +114,22 @@ export type SessionStatus =
   | { state: 'ready'; logFile?: string }
   | { state: 'closed'; error?: string }
 
+/** Result of looking up the latest GitHub release. */
+export type UpdateCheck =
+  | { state: 'latest'; current: string; latest: string; checkedAt: string }
+  | { state: 'available'; current: string; latest: string; checkedAt: string; notes: string; publishedAt?: string }
+  | { state: 'error'; current: string; checkedAt: string; message: string }
+
+/** Shown in the About dialog. */
+export interface AppInfo {
+  version: string
+  electron: string
+  chrome: string
+  node: string
+  arch: string
+  repoUrl: string
+}
+
 export interface ShellApi {
   listHosts(): Promise<HostView[]>
   saveHost(input: HostInput): Promise<HostView>
@@ -134,6 +150,13 @@ export interface ShellApi {
   /** App version from package.json, e.g. "1.0.0". */
   version(): Promise<string>
   pickKeyFile(): Promise<string | null>
+  appInfo(): Promise<AppInfo>
+  checkForUpdate(): Promise<UpdateCheck>
+  /** Open the release page found by the last check in the browser. */
+  openReleasePage(): Promise<void>
+  openRepoPage(): Promise<void>
+  /** The check made shortly after launch found a newer release. */
+  onUpdateAvailable(cb: (check: UpdateCheck) => void): () => void
 
   listSerialPorts(): Promise<SerialPortInfo[]>
   /** Fires when ports appear or disappear; `added` excludes ports present at startup. */
@@ -151,5 +174,10 @@ export interface ShellApi {
   onStatus(cb: (sessionId: string, status: SessionStatus) => void): () => void
   onPrompt(cb: (req: PromptRequest) => void): () => void
   answerPrompt(requestId: string, answer: PromptAnswer): void
-  onMenu(cb: (action: 'closeTab' | 'selectTab' | 'newHost' | 'home' | 'back' | 'search' | 'sendBreak' | 'toggleSidebar', arg?: number) => void): () => void
+  onMenu(
+    cb: (
+      action: 'closeTab' | 'selectTab' | 'newHost' | 'home' | 'back' | 'search' | 'sendBreak' | 'toggleSidebar' | 'about' | 'checkUpdate',
+      arg?: number
+    ) => void
+  ): () => void
 }

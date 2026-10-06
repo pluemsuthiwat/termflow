@@ -5,6 +5,7 @@ import ContextMenu, { type MenuItem, type MenuState } from './ContextMenu'
 import { deleteEffect, UNGROUPED } from './Dashboard'
 import { ConfirmDialog } from './dialogs'
 import { buildTree, useCollapsed, type GroupNode } from './groupTree'
+import { fadeClass, useScrollEdges } from './scrollEdges'
 import {
   IconBolt,
   IconChevron,
@@ -58,6 +59,7 @@ export default function Sidebar(p: Props) {
   const [collapsed, toggle] = useCollapsed('collapsedGroups.sidebar')
   const searchRef = useRef<HTMLInputElement>(null)
   const treeRef = useRef<HTMLDivElement>(null)
+  const treeEdges = useScrollEdges(treeRef, 'y')
 
   const q = query.trim()
   const searching = !!q
@@ -206,7 +208,7 @@ export default function Sidebar(p: Props) {
             <IconChevron open={open} size={12} />
           </span>
           <span className="row-icon folder">
-            <IconFolder size={14} />
+            <IconFolder size={14} open={open} />
           </span>
           <h3>{n.name}</h3>
           <button
@@ -311,7 +313,7 @@ export default function Sidebar(p: Props) {
         </button>
       </div>
 
-      <div className="host-list" ref={treeRef} onKeyDown={onTreeKey}>
+      <div className={`host-list scroll-fade scroll-fade-y${fadeClass(treeEdges)}`} ref={treeRef} onKeyDown={onTreeKey}>
         {quickTarget && (
           <div className="side-row quick-row" tabIndex={-1} onClick={submitSearch}>
             <span className="row-icon">

@@ -19,6 +19,7 @@ import * as serial from './serial'
 import { attach } from './session-io'
 import * as ssh from './ssh'
 import * as store from './store'
+import * as update from './update'
 
 // Lets tests (or a second profile) use a separate data directory.
 if (process.env.TERMFLOW_DATA_DIR) app.setPath('userData', process.env.TERMFLOW_DATA_DIR)
@@ -124,6 +125,15 @@ function createWindow(): void {
   attach(win.webContents)
   // Start watching for console cables once the page can receive the first scan.
   win.webContents.on('did-finish-load', () => serial.startWatching())
+  // One quiet check after launch; a newer release only marks the version chip.
+  if (app.isPackaged && !process.env.TERMFLOW_NO_UPDATE_CHECK) {
+    win.webContents.once('did-finish-load', () =>
+      setTimeout(async () => {
+        const check = await update.checkForUpdate()
+        if (check.state === 'available' && !win.isDestroyed()) win.webContents.send('update:available', check)
+      }, 5000)
+    )
+  }
 
   win.loadURL(APP_URL)
 }
@@ -137,6 +147,17 @@ handle('groups:rename', (path: string, newName: string) => store.renameGroup(pat
 handle('groups:delete', (name: string) => store.deleteGroup(name))
 handle('app:dataDir', () => store.dataDir())
 handle('app:version', () => app.getVersion())
+handle('app:info', () => ({
+  version: app.getVersion(),
+  electron: process.versions.electron,
+  chrome: process.versions.chrome,
+  node: process.versions.node,
+  arch: process.arch,
+  repoUrl: update.REPO_URL
+}))
+handle('app:openRepo', () => update.openRepoPage())
+handle('update:check', () => update.checkForUpdate())
+handle('update:openRelease', () => update.openReleasePage())
 handle('app:openDataDir', () => shell.openPath(store.dataDir()))
 handle('app:openLogsDir', () => {
   // The folder only exists after the first logged session.
@@ -178,7 +199,21 @@ function buildMenu(): void {
   const toRenderer = (action: string, arg?: number) => () =>
     (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0])?.webContents.send('menu', action, arg)
   const template: MenuItemConstructorOptions[] = [
-    { role: 'appMenu' },
+    {
+      label: app.name,
+      submenu: [
+        { label: 'About Termflow', click: toRenderer('about') },
+        { label: 'Check for Updates…', click: toRenderer('checkUpdate') },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
     {
       label: 'Shell',
       submenu: [
@@ -211,12 +246,6 @@ app.whenReady().then(() => {
   // The app needs no web permissions (camera, notifications, geolocation, ...).
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   session.defaultSession.setPermissionCheckHandler(() => false)
-  app.setAboutPanelOptions({
-    applicationName: 'Termflow',
-    applicationVersion: app.getVersion(),
-    version: '',
-    copyright: 'SSH client for network engineers'
-  })
   buildMenu()
   createWindow()
   app.on('activate', () => {

@@ -183,7 +183,6 @@ kbd {
 
 .host-list {
   flex: 1;
-  overflow-y: auto;
   padding: 2px 6px 12px;
 }
 
@@ -647,7 +646,30 @@ kbd {
   padding: 0 8px;
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
-  overflow-x: auto;
+}
+
+/* Session tabs scroll; the sidebar toggle and Dashboard tab stay put. */
+.tabbar .scroll-row {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.tabbar-tabs.scroll-fade {
+  --fade: 32px;
+}
+
+.tabbar-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 100%;
+}
+
+.tabbar .scroll-arrow {
+  -webkit-app-region: no-drag;
+  width: 22px;
+  height: 22px;
 }
 
 .tab {
@@ -721,8 +743,31 @@ kbd {
 .term-pane {
   position: absolute;
   inset: 0;
-  padding: 6px 0 0 10px;
+  /* content-box so FitAddon, which reads this element's computed height,
+     sizes rows to the space inside the padding instead of overflowing it */
+  box-sizing: content-box;
+  padding: 6px 0 12px 10px;
   user-select: text;
+}
+
+/* Terminal scrollbar: a thin rounded pill inside xterm's 14px track (the track stays the grab area). */
+.term-pane .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  left: 4px !important;
+  width: 6px !important;
+  border-radius: 3px;
+  transition: left 0.12s, width 0.12s;
+}
+
+.term-pane .xterm-scrollable-element > .scrollbar.vertical:hover > .slider,
+.term-pane .xterm-scrollable-element > .scrollbar.vertical > .slider.active {
+  left: 3px !important;
+  width: 8px !important;
+  border-radius: 4px;
+}
+
+/* No dark inset shadow along the top edge when scrolled back. */
+.term-pane .xterm-scrollable-element > .shadow {
+  display: none;
 }
 
 
@@ -746,7 +791,6 @@ kbd {
 .modal {
   width: min(520px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
-  overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -893,7 +937,6 @@ kbd {
   container-type: inline-size;
   position: absolute;
   inset: 0;
-  overflow-y: auto;
   padding: 28px clamp(16px, 4vw, 44px) 20px;
   display: flex;
   flex-direction: column;
@@ -938,12 +981,236 @@ kbd {
 }
 
 .ver-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
   font-size: 11px;
   color: var(--muted);
+  background: none;
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 1px 8px;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.ver-chip:hover {
+  color: var(--text);
+  border-color: var(--muted);
+  background: var(--panel-2);
+}
+
+/* A newer release was found: the chip says so. */
+.ver-chip.has-update {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--ok) 55%, var(--border));
+  padding-right: 3px;
+}
+
+.ver-update {
+  color: var(--accent-text);
+  background: var(--ok);
+  border-radius: 20px;
+  padding: 0 7px;
+  font-weight: 600;
+}
+
+/* ---- About dialog ---- */
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.about-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.about-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.about-version {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.about-tagline {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.update-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.update-box.available {
+  border-color: color-mix(in srgb, var(--ok) 50%, var(--border));
+}
+
+.update-box.error {
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
+}
+
+.update-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+}
+
+.update-line > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.update-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.update-box.latest .update-icon,
+.update-box.available .update-icon {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+}
+
+.update-box.error .update-icon {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+}
+
+.update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.release-notes {
+  max-height: 200px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 12px;
+}
+
+.release-notes h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+}
+
+.release-notes p,
+.release-notes ul {
+  margin: 4px 0;
+}
+
+.release-notes ul {
+  padding-left: 18px;
+}
+
+.release-notes code,
+.release-notes pre {
+  font-family: Menlo, monospace;
+  font-size: 11px;
+}
+
+.release-notes pre {
+  margin: 6px 0;
+  padding: 8px;
+  overflow-x: auto;
+  background: var(--bg);
+  border-radius: 6px;
+}
+
+.about-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.about-details dt {
+  color: var(--muted);
+}
+
+.about-details dd {
+  margin: 0;
+  font-family: Menlo, monospace;
+  font-size: 11px;
+}
+
+.about-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.about-foot > span {
+  flex: 1;
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
 }
 
 .dash-actions {
@@ -1110,9 +1377,88 @@ kbd {
 .recent-row {
   display: flex;
   gap: 8px;
+}
+
+/* Scroll containers without a visible scrollbar: the edge that has more content fades out. */
+.scroll-fade {
+  scrollbar-width: none;
+  --fade: 48px;
+}
+
+.scroll-fade::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll-fade-x {
   overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: thin;
+}
+
+.scroll-fade-y {
+  overflow-y: auto;
+  --fade: 28px;
+}
+
+.scroll-fade-x.more-start {
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade));
+}
+
+.scroll-fade-x.more-end {
+  mask-image: linear-gradient(to left, transparent, #000 var(--fade));
+}
+
+.scroll-fade-x.more-start.more-end {
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+}
+
+.scroll-fade-y.more-start {
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade));
+}
+
+.scroll-fade-y.more-end {
+  mask-image: linear-gradient(to top, transparent, #000 var(--fade));
+}
+
+.scroll-fade-y.more-start.more-end {
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+}
+
+/* Horizontal strip (ScrollRow): arrows join the faded edges. */
+.scroll-row {
+  position: relative;
+}
+
+.scroll-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.scroll-arrow.left {
+  left: 2px;
+}
+
+.scroll-arrow.right {
+  right: 2px;
+}
+
+.scroll-row:hover .scroll-arrow {
+  opacity: 1;
+}
+
+.scroll-arrow:hover {
+  border-color: var(--accent);
 }
 
 .recent-row .recent {
@@ -1528,8 +1874,13 @@ kbd {
 }
 
 /* Host table */
+/* Arrows sit on the header row: the middle of a long table may be off screen. */
+.dh-table-wrap .scroll-arrow {
+  top: 18px;
+}
+
 .dh-table-wrap {
-  overflow-x: auto;
+  overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;

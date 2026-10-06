@@ -146,3 +146,27 @@ export const IconLogs = (p: P) => (
     <path d="M9.5 1.5V5H13M6.5 8h4M6.5 10.5h4M6.5 13h2.5" />
   </Svg>
 )
+
+export const IconCheck = (p: P) => (
+  <Svg {...p}>
+    <path d="m3 8.5 3 3 7-7" />
+  </Svg>
+)
+
+export const IconDownload = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 2v8.5M4.5 7 8 10.5 11.5 7M2.5 13.5h11" />
+  </Svg>
+)
+
+export const IconRefresh = (p: P) => (
+  <Svg {...p}>
+    <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2v3h-3" />
+  </Svg>
+)
+
+export const IconExternal = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3" />
+  </Svg>
+)
