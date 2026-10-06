@@ -5,12 +5,16 @@
  * foreground colour or a full-screen app (alternate screen) is up.
  *
  * A digit run at the end of a chunk may be the start of an address split across
- * chunks, so it is held back briefly and released when the next chunk arrives or
- * after HOLD_MS, whichever comes first.
+ * chunks, so while output is streaming in it is held back briefly and released when
+ * the next chunk arrives or after HOLD_MS, whichever comes first. The echo of a typed
+ * key (a byte or two, on its own) is never held, so typing stays immediate.
  */
 
 const ESC = 0x1b
 const HOLD_MS = 15
+/** A chunk this small, after a pause this long, is keystroke echo rather than streamed output. */
+const ECHO_BYTES = 2
+const BURST_GAP_MS = 10
 /** Longest candidate: "255.255.255.255/32" plus a trailing separator. */
 const MAX_CANDIDATE = 19
 
@@ -47,6 +51,7 @@ export class IpHighlighter {
   /** Digits, dots and slashes that may turn out to be an address. */
   private candidate: number[] = []
   private timer: ReturnType<typeof setTimeout> | undefined
+  private lastPush = 0
   private readonly on: number[]
   private readonly off = bytes('\x1b[39m')
 
@@ -75,8 +80,12 @@ export class IpHighlighter {
 
   push(data: Uint8Array): void {
     clearTimeout(this.timer)
+    const now = performance.now()
+    const streaming = data.length > ECHO_BYTES || now - this.lastPush < BURST_GAP_MS
+    this.lastPush = now
     const out: number[] = []
     for (let i = 0; i < data.length; i++) this.step(data[i], out)
+    if (this.candidate.length && !streaming) this.endCandidate(0x20, out)
     if (out.length) this.write(Uint8Array.from(out))
     if (this.candidate.length) this.timer = setTimeout(() => this.flushHeld(), HOLD_MS)
   }

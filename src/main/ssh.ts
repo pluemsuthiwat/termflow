@@ -247,6 +247,10 @@ function authenticate(req: LoginRequest, strict: boolean): Promise<void> {
   }
 
   // Remember whether this is old gear, for the "legacy" badge.
+  // Send each keystroke at once, like OpenSSH does for interactive sessions. With Nagle on,
+  // a key typed while the previous one is unacknowledged waits for the device's (often
+  // delayed) ACK, so fast typing stutters.
+  client.on('connect', () => client.setNoDelay(true))
   client.on('handshake', (negotiated) => store.setLegacy(host.id, usesLegacy(negotiated)))
 
   return new Promise((resolve, reject) => {
