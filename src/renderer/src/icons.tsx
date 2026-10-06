@@ -65,6 +65,12 @@ export const IconChevron = ({ open, ...p }: P & { open?: boolean }) => (
   </Svg>
 )
 
+export const IconBack = (p: P) => (
+  <Svg {...p}>
+    <path d="M9.5 4.5 6 8l3.5 3.5" />
+  </Svg>
+)
+
 export const IconMore = (p: P) => (
   <Svg {...p}>
     <path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth={2.4} />

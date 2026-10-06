@@ -21,8 +21,9 @@ interface Props {
   groups: string[]
   liveHostIds: Set<string>
   activeHostId?: string
+  /** Host open in the edit dialog. */
+  editingHostId?: string
   dataDir: string
-  version: string
   onShowGroup: (path: string) => void
   onConnect: (h: HostView) => void
   onEdit: (h: HostView) => void
@@ -51,7 +52,8 @@ const looksLikeTarget = (q: string) => /^\S+$/.test(q) && /[@.:[]/.test(q)
 
 export default function Sidebar(p: Props) {
   const [query, setQuery] = useState('')
-  const [menu, setMenu] = useState<MenuState | null>(null)
+  // owner: the row the menu belongs to, kept highlighted while the menu is open.
+  const [menu, setMenu] = useState<(MenuState & { owner?: string }) | null>(null)
   const [confirm, setConfirm] = useState<Confirm | null>(null)
   const [collapsed, toggle] = useCollapsed('collapsedGroups.sidebar')
   const searchRef = useRef<HTMLInputElement>(null)
@@ -86,13 +88,22 @@ export default function Sidebar(p: Props) {
     []
   )
 
-  const openMenu = (e: MouseEvent, items: MenuItem[]) => {
+  const openMenu = (e: MouseEvent, items: MenuItem[], owner?: string) => {
     e.preventDefault()
     e.stopPropagation()
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
     // Right-click opens at the pointer, the ⋯ button below itself.
-    setMenu(e.type === 'contextmenu' ? { x: e.clientX, y: e.clientY, items } : { x: r.left, y: r.bottom + 4, items })
+    const at = e.type === 'contextmenu' ? { x: e.clientX, y: e.clientY } : { x: r.left, y: r.bottom + 4 }
+    setMenu({ ...at, items, owner })
   }
+  /** Row being worked on (menu, edit or delete dialog open): keep it marked after the pointer leaves. */
+  const working = (owner: string): string =>
+    menu?.owner === owner ||
+    owner === `host:${p.editingHostId}` ||
+    (confirm?.kind === 'host' && owner === `host:${confirm.host.id}`) ||
+    (confirm?.kind === 'group' && owner === `group:${confirm.node.path}`)
+      ? 'working'
+      : ''
 
   const hostItems = (h: HostView): MenuItem[] => [
     { label: 'Connect', onSelect: () => p.onConnect(h), hint: '↵' },
@@ -150,12 +161,13 @@ export default function Sidebar(p: Props) {
     return (
       <div
         key={h.id}
-        className={`host side-row ${h.id === p.activeHostId ? 'current' : ''}`}
-        style={{ paddingLeft: indent(depth) }}
+        className={`host side-row ${h.id === p.activeHostId ? 'current' : ''} ${working(`host:${h.id}`)}`}
+        // Indent with margin so the row's frame starts right of the tree guide line.
+        style={{ marginLeft: indent(depth) - 8 }}
         tabIndex={-1}
         title={hostAddress(h)}
         onClick={() => p.onConnect(h)}
-        onContextMenu={(e) => openMenu(e, hostItems(h))}
+        onContextMenu={(e) => openMenu(e, hostItems(h), `host:${h.id}`)}
       >
         <span className={`status-dot ${live ? 'live' : ''}`} title={live ? 'Connected' : 'Not connected'} />
         <div className="host-main">
@@ -169,7 +181,7 @@ export default function Sidebar(p: Props) {
           className="row-more"
           title="More actions"
           aria-label={`More actions for ${name}`}
-          onClick={(e) => openMenu(e, hostItems(h))}
+          onClick={(e) => openMenu(e, hostItems(h), `host:${h.id}`)}
         >
           <IconMore size={14} />
         </button>
@@ -182,13 +194,13 @@ export default function Sidebar(p: Props) {
     return (
       <section key={n.path || UNGROUPED} data-group={n.path || UNGROUPED}>
         <div
-          className="side-row side-group"
+          className={`side-row side-group ${working(`group:${n.path}`)}`}
           data-path={n.path}
           style={{ paddingLeft: indent(n.depth) - 4 }}
           tabIndex={-1}
           aria-expanded={open}
           onClick={() => !searching && toggle(n.path)}
-          onContextMenu={(e) => openMenu(e, groupItems(n))}
+          onContextMenu={(e) => openMenu(e, groupItems(n), `group:${n.path}`)}
         >
           <span className="chev">
             <IconChevron open={open} size={12} />
@@ -197,12 +209,11 @@ export default function Sidebar(p: Props) {
             <IconFolder size={14} />
           </span>
           <h3>{n.name}</h3>
-          <span className="side-count">{n.total}</span>
           <button
             className="row-more"
             title="Group actions"
             aria-label={`Actions for group ${n.name}`}
-            onClick={(e) => openMenu(e, groupItems(n))}
+            onClick={(e) => openMenu(e, groupItems(n), `group:${n.path}`)}
           >
             <IconMore size={14} />
           </button>
@@ -294,7 +305,7 @@ export default function Sidebar(p: Props) {
       )}
 
       <div className="side-section-head">
-        <span>Hosts · {searching ? `${matchCount} found` : p.hosts.length}</span>
+        <span>Hosts{searching && ` · ${matchCount} found`}</span>
         <button className="icon-btn small" title="New host or group" aria-label="New" onClick={(e) => openMenu(e, newItems)}>
           <IconPlus size={15} />
         </button>
@@ -329,11 +340,6 @@ export default function Sidebar(p: Props) {
           <IconFolder size={14} />
           <span>Data folder</span>
         </button>
-        {p.version && (
-          <span className="app-version" title={`Termflow ${p.version}`}>
-            v{p.version}
-          </span>
-        )}
       </footer>
 
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}

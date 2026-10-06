@@ -6,6 +6,7 @@ import ContextMenu, { type MenuItem, type MenuState } from './ContextMenu'
 import { ConfirmDialog } from './dialogs'
 import { buildTree, hostMatches, type GroupNode } from './groupTree'
 import {
+  IconBack,
   IconChevron,
   IconClock,
   IconFolder,
@@ -22,6 +23,8 @@ import {
   IconWarn
 } from './icons'
 import type { Tab } from './TerminalView'
+// Same artwork as the app icon (both drawn by build/make-icon.py).
+import logo from './assets/logo.png'
 
 /** Built-in group for hosts not filed anywhere else (stored as group ''). */
 export const UNGROUPED = 'Default'
@@ -287,7 +290,6 @@ export default function Dashboard(p: Props) {
 
   const groupTile = (n: GroupNode) => {
     const liveHere = allHosts(n).filter((h) => live.has(h.id)).length
-    const shown = n.children.slice(0, 3)
     return (
       <div
         key={n.path}
@@ -312,16 +314,6 @@ export default function Dashboard(p: Props) {
           {n.children.length > 0 && <span>· {plural(n.children.length, 'subgroup')}</span>}
           {liveHere > 0 && <span className="live-text">● {liveHere} live</span>}
         </div>
-        {shown.length > 0 && (
-          <div className="dg-subs">
-            {shown.map((c) => (
-              <span key={c.path} className="dg-sub">
-                {c.name}
-              </span>
-            ))}
-            {n.children.length > shown.length && <span className="dg-sub more">+{n.children.length - shown.length}</span>}
-          </div>
-        )}
       </div>
     )
   }
@@ -332,12 +324,7 @@ export default function Dashboard(p: Props) {
     <div className="dashboard">
       <header className="dash-top">
         <div className="brand-row">
-          <span className="brand-mark" aria-hidden="true">
-            {/* Drawn on a 16px grid, centred on (8, 8), so it sits dead centre in the square. */}
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3.5 4.5 7 8l-3.5 3.5M8.5 11.5h4" />
-            </svg>
-          </span>
+          <img className="brand-mark" src={logo} alt="" width={36} height={36} draggable={false} />
           <h1 className="brand">Termflow</h1>
           {p.version && <span className="ver-chip">v{p.version}</span>}
         </div>
@@ -503,15 +490,25 @@ export default function Dashboard(p: Props) {
 
           {node && (
             <section className={`group-hero hue-${hueOf(node.path)}`}>
-              <nav className="crumbs" aria-label="Breadcrumb">
-                <button onClick={() => onNavigate('')}>Overview</button>
-                {crumbs.map((c, i) => (
-                  <span key={c.path} className="crumb">
-                    <IconChevron size={11} />
-                    {i < crumbs.length - 1 ? <button onClick={() => onNavigate(c.path)}>{c.name}</button> : <span aria-current="page">{c.name}</span>}
-                  </span>
-                ))}
-              </nav>
+              <div className="hero-nav">
+                <button
+                  className="back-btn"
+                  onClick={() => onNavigate(parentOf(node.path))}
+                  title={`Back to ${parentOf(node.path) ? nameOf(parentOf(node.path)) : 'Overview'} (⌘[)`}
+                >
+                  <IconBack size={14} />
+                  <span>Back</span>
+                </button>
+                <nav className="crumbs" aria-label="Breadcrumb">
+                  <button onClick={() => onNavigate('')}>Overview</button>
+                  {crumbs.map((c, i) => (
+                    <span key={c.path} className="crumb">
+                      <IconChevron size={11} />
+                      {i < crumbs.length - 1 ? <button onClick={() => onNavigate(c.path)}>{c.name}</button> : <span aria-current="page">{c.name}</span>}
+                    </span>
+                  ))}
+                </nav>
+              </div>
               <div className="hero-row">
                 <span className="dg-icon big">
                   <IconFolder size={22} open />

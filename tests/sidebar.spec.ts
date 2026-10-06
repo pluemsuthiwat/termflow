@@ -104,10 +104,18 @@ test('header shows the host count; status dot turns green while connected', asyn
   ])
   ui = await launchApp(dataDir, { TERMFLOW_SERIAL_MOCK_PORTS: '/dev/cu.usbserial-A10K=FTDI' })
   const win = ui.win
-  await expect(win.locator('.side-section-head', { hasText: 'Hosts' })).toContainText('Hosts · 2')
+  // No host counts in the sidebar: just the heading, and no number next to folders.
+  await expect(win.locator('.side-section-head', { hasText: 'Hosts' }).locator('span').first()).toHaveText('Hosts')
+  await expect(win.locator('.side-group', { hasText: 'Site-A' }).first()).not.toContainText('2')
   await expect(win.locator('.host-list .status-dot.live')).toHaveCount(0)
   await win.locator('.host-list .host', { hasText: 'sw-console' }).click()
   await expect(win.locator('.tab.active .dot.ready')).toBeVisible()
+  // Every host has a faint frame; the open one gets the accent colour.
+  const border = (name: string) =>
+    win.locator('.host-list .host', { hasText: name }).evaluate((el) => getComputedStyle(el).borderTopColor)
+  await expect.poll(() => border('sw-console')).toBe('rgb(122, 162, 247)')
+  expect(await border('idle')).not.toBe('rgb(122, 162, 247)')
+  expect(await border('idle')).not.toMatch(/^rgba\(0, 0, 0, 0\)$/)
   await expect(win.locator('.host-list .host', { hasText: 'sw-console' }).locator('.status-dot')).toHaveClass(/live/)
   await expect(win.locator('.host-list .host', { hasText: 'idle' }).locator('.status-dot')).not.toHaveClass(/live/)
   await expect(win.locator('.host-list .host.current')).toContainText('sw-console')
@@ -126,11 +134,13 @@ test('+ button menu creates a host or a group; no Dashboard entry in the sidebar
   await expect(win.locator('.modal h2')).toHaveText('New host')
 })
 
-test('version from package.json is shown in the sidebar, dashboard and About panel', async () => {
+test('version from package.json is shown on the dashboard and About panel, not in the sidebar', async () => {
   const { version } = require('../package.json')
   const { win, app } = await start()
-  await expect(win.locator('.app-version')).toHaveText(`v${version}`)
+  await expect(win.locator('.side-foot')).toHaveText('Data folder')
   await expect(win.locator('.dash-version')).toHaveText(`Termflow v${version}`)
+  // Dashboard logo is the app icon artwork and actually loads (CSP allows it).
+  await expect.poll(() => win.locator('img.brand-mark').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(256)
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version)
 })
 
@@ -164,4 +174,33 @@ test.describe('Default group', () => {
     await win.locator('.modal').getByRole('button', { name: 'Create group' }).click()
     await expect(win.locator('.modal .error')).toHaveText('"Default" is a built-in group; choose another name')
   })
+})
+
+test('the host being worked on stays marked while its menu, edit or delete dialog is open', async () => {
+  const { win } = await start([host(22, { name: 'core-1', group: 'HQ' }), host(22, { name: 'core-2', group: 'HQ' })])
+  const row = win.locator('.host-list .host', { hasText: 'core-1' })
+  const other = win.locator('.host-list .host', { hasText: 'core-2' })
+
+  await row.hover()
+  await row.getByRole('button', { name: 'More actions for core-1' }).click()
+  await win.mouse.move(900, 700) // pointer leaves the row
+  await expect(row).toHaveClass(/\bworking\b/)
+  await expect(row.locator('.row-more')).toBeVisible()
+  await expect(other).not.toHaveClass(/\bworking\b/)
+
+  await win.getByRole('menuitem', { name: 'Edit…' }).click()
+  await expect(win.locator('.modal')).toBeVisible()
+  await expect(row).toHaveClass(/\bworking\b/) // still marked while editing
+  await win.locator('.modal').getByRole('button', { name: 'Cancel' }).click()
+  await expect(row).not.toHaveClass(/\bworking\b/)
+
+  await row.click({ button: 'right' })
+  await win.getByRole('menuitem', { name: 'Delete…' }).click()
+  await expect(row).toHaveClass(/\bworking\b/)
+  await win.locator('.modal').getByRole('button', { name: 'Cancel' }).click()
+  await expect(row).not.toHaveClass(/\bworking\b/)
+
+  await row.click({ button: 'right' })
+  await win.keyboard.press('Escape')
+  await expect(row).not.toHaveClass(/\bworking\b/)
 })

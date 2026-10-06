@@ -181,16 +181,6 @@ kbd {
   flex: 1;
 }
 
-.side-count {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  opacity: 0.8;
-}
-
 .host-list {
   flex: 1;
   overflow-y: auto;
@@ -220,6 +210,38 @@ kbd {
 
 .side-row.current {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* Hosts sit in a faint frame; the one open in the active tab gets a strong one. */
+.side-row.host {
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  margin-bottom: 3px;
+}
+
+.side-row.host:hover,
+.side-row.host:focus-visible {
+  border-color: color-mix(in srgb, var(--muted) 45%, var(--border));
+}
+
+.side-row.host:active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.side-row.host.current {
+  border-color: var(--accent);
+}
+
+/* Row being worked on (menu / edit / delete open): stays marked after the pointer leaves. */
+.side-row.working {
+  background: var(--panel-2);
+}
+
+.side-row.host.working {
+  border-color: var(--muted);
+}
+
+.side-row.host.current.working {
+  border-color: var(--accent);
 }
 
 .row-icon {
@@ -384,16 +406,8 @@ kbd {
   background: var(--border);
 }
 
-.side-row:not(:hover):not(:focus-visible) .row-more {
+.side-row:not(:hover):not(:focus-visible):not(.working) .row-more {
   display: none;
-}
-
-.side-group .side-count {
-  padding-right: 2px;
-}
-
-.side-group:hover .side-count {
-  visibility: hidden;
 }
 
 .tree-empty {
@@ -453,16 +467,6 @@ kbd {
   gap: 6px;
   border-top: 1px solid var(--border);
   padding: 6px;
-}
-
-.app-version {
-  flex-shrink: 0;
-  padding-right: 8px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  opacity: 0.7;
-  user-select: text;
 }
 
 .foot-btn {
@@ -924,14 +928,13 @@ kbd {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
+  display: block;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
-  color: #fff;
-  background: var(--accent-strong);
+  /* The artwork's own rounded corners; keeps the edge crisp when scaled. */
   border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .ver-chip {
@@ -1159,12 +1162,37 @@ kbd {
   padding: 14px 18px 18px;
 }
 
+.hero-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 9px 3px 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.back-btn:hover {
+  border-color: var(--muted);
+}
+
 .crumbs {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 12px;
+  min-width: 0;
   font-size: 12px;
   color: var(--muted);
 }
@@ -1327,25 +1355,6 @@ kbd {
   gap: 6px;
   font-size: 12px;
   color: var(--muted);
-}
-
-.dg-subs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.dg-sub {
-  font-size: 11px;
-  color: var(--muted);
-  background: var(--panel-2);
-  border-radius: 5px;
-  padding: 1px 6px;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .dg-tile.new {

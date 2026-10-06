@@ -86,7 +86,7 @@ test.describe('overview', () => {
     await expect(modal(win).locator('.error')).toHaveText('Group "Core" already exists here')
   })
 
-  test('group tiles show totals, subgroup names and open on click', async () => {
+  test('group tiles show name and counts only (no subgroup names) and open on click', async () => {
     const { win } = await start([
       host(22, { group: 'HQ' }),
       host(22, { group: 'HQ/B1' }),
@@ -97,7 +97,8 @@ test.describe('overview', () => {
     const hq = tile(win, 'HQ')
     await expect(hq.locator('.dg-meta')).toContainText('5 hosts')
     await expect(hq.locator('.dg-meta')).toContainText('4 subgroups')
-    await expect(hq.locator('.dg-sub')).toHaveText(['B1', 'B2', 'B3', '+1'])
+    await expect(hq.locator('.dg-name')).toHaveText('HQ')
+    await expect(hq).not.toContainText('B1')
     await hq.click()
     await expect(hero(win).locator('h2')).toHaveText('HQ')
     await expect(win.locator('.dg-tile[data-group]')).toHaveCount(4)
@@ -137,6 +138,27 @@ test.describe('overview', () => {
 })
 
 test.describe('inside a group', () => {
+  test('Back button and ⌘[ go up one level at a time', async () => {
+    const { win, app } = await start([], ['Site A/Building 1/Floor 2'])
+    await expect(hero(win)).toHaveCount(0) // Overview: nothing to go back to
+    await tile(win, 'Site A').click()
+    await tile(win, 'Site A/Building 1').click()
+    await tile(win, 'Site A/Building 1/Floor 2').click()
+    const back = hero(win).getByRole('button', { name: 'Back', exact: true })
+    await expect(back).toHaveAttribute('title', 'Back to Building 1 (⌘[)')
+
+    await back.click()
+    await expect(hero(win).locator('h2')).toHaveText('Building 1')
+    await menu(app, 'Back')
+    await expect(hero(win).locator('h2')).toHaveText('Site A')
+    await expect(back).toHaveAttribute('title', 'Back to Overview (⌘[)')
+    await back.click()
+    await expect(win.locator('.stat-row')).toBeVisible()
+    await expect(hero(win)).toHaveCount(0)
+    await menu(app, 'Back') // already at the top: stays put
+    await expect(win.locator('.stat-row')).toBeVisible()
+  })
+
   test('breadcrumb navigation and "Add host" prefill the current group', async () => {
     const { win, dataDir } = await start([], ['Bangkok HQ/Building 1'])
     await tile(win, 'Bangkok HQ').click()

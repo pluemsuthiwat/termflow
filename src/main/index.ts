@@ -23,11 +23,31 @@ import * as store from './store'
 // Lets tests (or a second profile) use a separate data directory.
 if (process.env.TERMFLOW_DATA_DIR) app.setPath('userData', process.env.TERMFLOW_DATA_DIR)
 
+// A packaged app refuses remote debugging: it would let any local program drive the
+// page and its API (saved logins). Only test packages (npm run dist:test) allow it.
+function isTestPackage(): boolean {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).termflowTestBuild === true
+  } catch {
+    return false
+  }
+}
+if (
+  app.isPackaged &&
+  (app.commandLine.hasSwitch('remote-debugging-port') || app.commandLine.hasSwitch('remote-debugging-pipe')) &&
+  !isTestPackage()
+) {
+  console.error('Remote debugging is disabled in Termflow.')
+  app.exit(1)
+}
+
 // ---- web content lockdown ----
 // The preload gives the page access to saved hosts and sessions, so only our own
 // page may ever load in a window, and only it may talk to the main process.
 
-const APP_URL = process.env.ELECTRON_RENDERER_URL || pathToFileURL(path.join(__dirname, '../renderer/index.html')).href
+// The dev server URL is honoured only in development: a packaged app always loads its own files.
+const DEV_URL = app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL
+const APP_URL = DEV_URL || pathToFileURL(path.join(__dirname, '../renderer/index.html')).href
 
 /** Same document as the app page (query and #hash ignored). */
 function isAppUrl(url: string): boolean {
@@ -163,6 +183,7 @@ function buildMenu(): void {
       label: 'Shell',
       submenu: [
         { label: 'Home', accelerator: 'CmdOrCtrl+0', click: toRenderer('home') },
+        { label: 'Back', accelerator: 'CmdOrCtrl+[', click: toRenderer('back') },
         { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+\\', click: toRenderer('toggleSidebar') },
         { label: 'New Host…', accelerator: 'CmdOrCtrl+N', click: toRenderer('newHost') },
         { label: 'Search Hosts', accelerator: 'CmdOrCtrl+K', click: toRenderer('search') },

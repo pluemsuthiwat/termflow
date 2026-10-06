@@ -1,0 +1,36 @@
+# macOS app: npm run dist  ->  dist/Termflow-<version>-arm64.dmg (+ .zip)
+appId: io.github.pluemsuthiwat.termflow
+productName: Termflow
+copyright: Copyright © 2026 Suthiwat Srisen
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+asar: true
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
+  category: public.app-category.developer-tools
+  icon: build/icon.png
+  # Ad-hoc signature: runs on this Mac. Sharing it needs a Developer ID
+  # certificate, hardenedRuntime: true and notarization.
+  identity: '-'
+  hardenedRuntime: false
+  notarize: false
+dmg:
+  title: Termflow ${version}
+# Packaged app can't be run as plain Node, take NODE_OPTIONS / --inspect, or load
+# code from outside its (integrity-checked) app.asar.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true

@@ -151,5 +151,5 @@ export interface ShellApi {
   onStatus(cb: (sessionId: string, status: SessionStatus) => void): () => void
   onPrompt(cb: (req: PromptRequest) => void): () => void
   answerPrompt(requestId: string, answer: PromptAnswer): void
-  onMenu(cb: (action: 'closeTab' | 'selectTab' | 'newHost' | 'home' | 'search' | 'sendBreak' | 'toggleSidebar', arg?: number) => void): () => void
+  onMenu(cb: (action: 'closeTab' | 'selectTab' | 'newHost' | 'home' | 'back' | 'search' | 'sendBreak' | 'toggleSidebar', arg?: number) => void): () => void
 }

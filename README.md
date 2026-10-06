@@ -10,6 +10,25 @@ npm run dev      # development, hot reload
 npm run build    # production build into out/
 ```
 
+## macOS app
+
+```sh
+npm run dist     # dist/Termflow-<version>-arm64.dmg (+ .zip), Apple Silicon
+```
+
+Open the `.dmg` and drag **Termflow** to Applications. Hosts, groups and saved passwords are the
+same as in development (`~/Library/Application Support/Termflow/`).
+
+- The app is signed ad-hoc (no Apple Developer ID), which is fine on the Mac that built it. On another Mac,
+  Gatekeeper blocks the first launch: right-click the app → **Open**, or allow it under System Settings →
+  Privacy & Security. Sharing it widely needs a Developer ID certificate, hardened runtime and notarization.
+- The first time it saves or reads a password, macOS asks to let Termflow use "Termflow Safe Storage" in the
+  Keychain: choose **Always Allow**. A rebuilt ad-hoc app may ask again.
+- Hardened package: Electron fuses disable running as Node, `NODE_OPTIONS`, `--inspect` and loading code
+  outside the integrity-checked `app.asar`; the app also refuses `--remote-debugging-port`.
+- `npm run test:dist` builds a test package (same packaging, debugging allowed) and runs the whole suite on it.
+- Icon: `build/icon.png` and the dashboard logo `src/renderer/src/assets/logo.png`, both drawn by `python3 build/make-icon.py`.
+
 ## Tests
 
 ```sh
@@ -20,7 +39,7 @@ The suite drives the real Electron app against an in-process fake SSH device
 (`tests/helpers.ts`): password / keyboard-interactive / OTP / publickey / agent auth,
 legacy-only algorithms (incl. IOS 12.2-style group1-sha1), host-key trust and change, security lockdown, session logs, 6 MB output,
 resize, tabs, host CRUD, groups and dashboard, quick connect and the sidebar. Each test uses a fresh
-temp data dir. Set `TERMFLOW_EXECUTABLE` to run the same suite against a packaged app.
+temp data dir. `npm run test:dist` runs the same suite against a packaged app (see above).
 
 Serial tests use `@serialport/binding-mock` (`TERMFLOW_SERIAL_MOCK=1`).
 
@@ -64,7 +83,7 @@ Set `TERMFLOW_DATA_DIR` to use a different data directory.
 
 ## Next
 
-SFTP, port forwarding / jump host, snippets, import from `~/.ssh/config`, packaged `.app`.
+SFTP, port forwarding / jump host, snippets, import from `~/.ssh/config`, Developer ID signing + notarization, Intel / universal build.
 
 ## License
 

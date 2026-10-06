@@ -231,6 +231,8 @@ export default function App() {
       else if (action === 'selectTab' && typeof arg === 'number' && tabs[arg]) setActiveId(tabs[arg].sessionId)
       else if (action === 'newHost') setEditing({ ...emptyHost })
       else if (action === 'home') showGroup('')
+      // Up one level while browsing groups on the dashboard.
+      else if (action === 'back' && activeId === null && dashPath) setDashPath(parentOf(dashPath))
       else if (action === 'toggleSidebar') toggleSidebar()
       else if (action === 'sendBreak' && activeId && tabs.find((t) => t.sessionId === activeId)?.kind === 'serial')
         window.shell.sendBreak(activeId)
@@ -296,8 +298,8 @@ export default function App() {
           groups={groupNames}
           liveHostIds={liveHostIds}
           activeHostId={tabs.find((t) => t.sessionId === activeId)?.hostId}
+          editingHostId={editing?.id}
           dataDir={dataDir}
-          version={version}
           onShowGroup={showGroup}
           onConnect={connectHost}
           onEdit={editHost}
