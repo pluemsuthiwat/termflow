@@ -78,6 +78,8 @@ export async function connect(req: ConnectRequest): Promise<void> {
   const host = req.hostId.startsWith('port:') ? undefined : store.getHost(req.hostId)
   const settings = host?.serial ?? req.serial
   if (!settings) throw new Error('No console port set for this host')
+  // Only device nodes: never let a "port" be an arbitrary file.
+  if (!/^\/dev\/[\w.-]+$/.test(settings.path)) throw new Error(`Not a serial device: ${settings.path}`)
 
   status(req.sessionId, { state: 'connecting' })
   const path = await resolvePath(settings, host)

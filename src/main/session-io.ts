@@ -44,11 +44,12 @@ export interface SessionLog {
 
 /** Plain-text session log in the logs directory. */
 export function openLog(name: string): SessionLog {
-  fs.mkdirSync(store.logsDir(), { recursive: true })
+  // Logs hold device output (configs, hashes, SNMP communities): owner-only.
+  store.ensurePrivateDir(store.logsDir())
   const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)
   const safe = name.replace(/[^\w.-]+/g, '_')
   const file = path.join(store.logsDir(), `${safe}_${stamp}.log`)
-  const stream = fs.createWriteStream(file, { flags: 'a' })
+  const stream = fs.createWriteStream(file, { flags: 'a', mode: 0o600 })
   const decoder = new StringDecoder('utf8')
   return {
     file,

@@ -25,6 +25,12 @@ export const logsDir = (): string => path.join(dataDir(), 'logs')
 
 const file = (name: string): string => path.join(dataDir(), name)
 
+/** Create (or tighten) a directory only this user can read. `mode` alone skips existing dirs. */
+export function ensurePrivateDir(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
+  fs.chmodSync(dir, 0o700)
+}
+
 function readJson<T>(name: string, fallback: T): T {
   try {
     return JSON.parse(fs.readFileSync(file(name), 'utf8')) as T
@@ -35,7 +41,7 @@ function readJson<T>(name: string, fallback: T): T {
 }
 
 function writeJsonAtomic(name: string, value: unknown): void {
-  fs.mkdirSync(dataDir(), { recursive: true })
+  ensurePrivateDir(dataDir())
   const target = file(name)
   const tmp = `${target}.${process.pid}.tmp`
   fs.writeFileSync(tmp, JSON.stringify(value, null, 2), { mode: 0o600 })
@@ -82,6 +88,15 @@ export function touchHost(id: string): void {
   const h = hosts.find((x) => x.id === id)
   if (!h) return
   h.lastConnectedAt = new Date().toISOString()
+  writeJsonAtomic('hosts.json', hosts)
+}
+
+/** Record whether the device only speaks old SSH algorithms (detected on connect). */
+export function setLegacy(id: string, legacy: boolean): void {
+  const hosts = getHosts()
+  const h = hosts.find((x) => x.id === id)
+  if (!h || h.legacy === legacy) return
+  h.legacy = legacy
   writeJsonAtomic('hosts.json', hosts)
 }
 

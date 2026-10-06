@@ -25,6 +25,7 @@ const api: ShellApi = {
   onSerialPorts: (cb) => listen('serial:ports', cb),
   sendBreak: (id) => ipcRenderer.send('serial:break', id),
 
+  login: (req) => ipcRenderer.invoke('ssh:login', req),
   connect: (req) => ipcRenderer.invoke('ssh:connect', req),
   write: (id, data) => ipcRenderer.send('ssh:write', id, data),
   resize: (id, rows, cols) => ipcRenderer.send('ssh:resize', id, rows, cols),

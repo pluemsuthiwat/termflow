@@ -1,8 +1,20 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  session,
+  shell,
+  type IpcMainEvent,
+  type IpcMainInvokeEvent,
+  type MenuItemConstructorOptions
+} from 'electron'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import type { ConnectRequest, HostInput, PromptAnswer } from '../shared/types'
+import { pathToFileURL } from 'node:url'
+import type { ConnectRequest, HostInput, LoginRequest, PromptAnswer } from '../shared/types'
 import * as serial from './serial'
 import { attach } from './session-io'
 import * as ssh from './ssh'
@@ -10,6 +22,65 @@ import * as store from './store'
 
 // Lets tests (or a second profile) use a separate data directory.
 if (process.env.TERMFLOW_DATA_DIR) app.setPath('userData', process.env.TERMFLOW_DATA_DIR)
+
+// ---- web content lockdown ----
+// The preload gives the page access to saved hosts and sessions, so only our own
+// page may ever load in a window, and only it may talk to the main process.
+
+const APP_URL = process.env.ELECTRON_RENDERER_URL || pathToFileURL(path.join(__dirname, '../renderer/index.html')).href
+
+/** Same document as the app page (query and #hash ignored). */
+function isAppUrl(url: string): boolean {
+  try {
+    const a = new URL(url)
+    const b = new URL(APP_URL)
+    return a.protocol === b.protocol && a.host === b.host && a.pathname === b.pathname
+  } catch {
+    return false
+  }
+}
+
+/** Open http(s) links in the browser; nothing else (file:, smb:, custom app schemes...). */
+function openExternalSafely(url: string): void {
+  try {
+    if (['https:', 'http:'].includes(new URL(url).protocol)) void shell.openExternal(url)
+  } catch {
+    // not a URL
+  }
+}
+
+app.on('web-contents-created', (_e, contents) => {
+  // Links, dropped files, redirects: never replace the app page.
+  const stay = (e: Electron.Event, url: string): void => {
+    if (!isAppUrl(url)) e.preventDefault()
+  }
+  contents.on('will-navigate', stay)
+  contents.on('will-redirect', stay)
+  contents.on('will-attach-webview', (e) => e.preventDefault())
+  contents.setWindowOpenHandler(({ url }) => {
+    openExternalSafely(url)
+    return { action: 'deny' }
+  })
+})
+
+/** Only the app page's top frame may call into the main process. */
+function trusted(e: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  const frame = e.senderFrame
+  return !!frame && frame.parent === null && isAppUrl(frame.url)
+}
+
+function handle<A extends unknown[]>(channel: string, fn: (...args: A) => unknown): void {
+  ipcMain.handle(channel, (e, ...args) => {
+    if (!trusted(e)) throw new Error('Request refused')
+    return fn(...(args as A))
+  })
+}
+
+function on<A extends unknown[]>(channel: string, fn: (...args: A) => void): void {
+  ipcMain.on(channel, (e, ...args) => {
+    if (trusted(e)) fn(...(args as A))
+  })
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -24,66 +95,64 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      webSecurity: true,
+      // Inspecting the page would expose the same API; development builds only.
+      devTools: !app.isPackaged
     }
   })
   attach(win.webContents)
   // Start watching for console cables once the page can receive the first scan.
   win.webContents.on('did-finish-load', () => serial.startWatching())
 
-  // Open external links in the browser, never inside the app.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
-    return { action: 'deny' }
-  })
-
-  if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL)
-  else win.loadFile(path.join(__dirname, '../renderer/index.html'))
+  win.loadURL(APP_URL)
 }
 
-ipcMain.handle('hosts:list', () => store.listHostViews())
-ipcMain.handle('hosts:save', (_e, input: HostInput) => store.saveHost(input))
-ipcMain.handle('hosts:delete', (_e, id: string) => store.deleteHost(id))
-ipcMain.handle('groups:list', () => store.listGroups())
-ipcMain.handle('groups:create', (_e, name: string, parent?: string) => store.createGroup(name, parent))
-ipcMain.handle('groups:rename', (_e, path: string, newName: string) => store.renameGroup(path, newName))
-ipcMain.handle('groups:delete', (_e, name: string) => store.deleteGroup(name))
-ipcMain.handle('app:dataDir', () => store.dataDir())
-ipcMain.handle('app:version', () => app.getVersion())
-ipcMain.handle('app:openDataDir', () => shell.openPath(store.dataDir()))
-ipcMain.handle('app:openLogsDir', () => {
+handle('hosts:list', () => store.listHostViews())
+handle('hosts:save', (input: HostInput) => store.saveHost(input))
+handle('hosts:delete', (id: string) => store.deleteHost(id))
+handle('groups:list', () => store.listGroups())
+handle('groups:create', (name: string, parent?: string) => store.createGroup(name, parent))
+handle('groups:rename', (path: string, newName: string) => store.renameGroup(path, newName))
+handle('groups:delete', (name: string) => store.deleteGroup(name))
+handle('app:dataDir', () => store.dataDir())
+handle('app:version', () => app.getVersion())
+handle('app:openDataDir', () => shell.openPath(store.dataDir()))
+handle('app:openLogsDir', () => {
   // The folder only exists after the first logged session.
-  fs.mkdirSync(store.logsDir(), { recursive: true })
+  store.ensurePrivateDir(store.logsDir())
   return shell.openPath(store.logsDir())
 })
-ipcMain.handle('app:revealLog', (_e, file: string) => {
+handle('app:revealLog', (file: string) => {
   // Only reveal files inside our logs folder.
   if (path.dirname(path.resolve(file)) === path.resolve(store.logsDir())) shell.showItemInFolder(file)
 })
-ipcMain.handle('app:pickKeyFile', async () => {
+handle('app:pickKeyFile', async () => {
   const res = await dialog.showOpenDialog({
     title: 'Choose private key',
     defaultPath: path.join(os.homedir(), '.ssh'),
     properties: ['openFile', 'showHiddenFiles']
   })
   if (res.canceled || !res.filePaths[0]) return null
-  return res.filePaths[0].replace(os.homedir(), '~')
+  const picked = res.filePaths[0]
+  return picked.startsWith(os.homedir() + path.sep) ? '~' + picked.slice(os.homedir().length) : picked
 })
 
 // Sessions are SSH or serial; serial ones are quick port sessions or saved serial hosts.
 const isSerialRequest = (req: ConnectRequest): boolean =>
   !!req.serial || store.getHost(req.hostId)?.kind === 'serial'
 
-ipcMain.handle('ssh:connect', (_e, req: ConnectRequest) => (isSerialRequest(req) ? serial.connect(req) : ssh.connect(req)))
-ipcMain.on('ssh:write', (_e, id: string, data: string) => (serial.has(id) ? serial.write(id, data) : ssh.write(id, data)))
-ipcMain.on('ssh:resize', (_e, id: string, rows: number, cols: number) => ssh.resize(id, rows, cols))
-ipcMain.on('ssh:close', (_e, id: string) => {
+handle('ssh:login', (req: LoginRequest) => ssh.login(req))
+handle('ssh:connect', (req: ConnectRequest) => (isSerialRequest(req) ? serial.connect(req) : ssh.connect(req)))
+on('ssh:write', (id: string, data: string) => (serial.has(id) ? serial.write(id, data) : ssh.write(id, data)))
+on('ssh:resize', (id: string, rows: number, cols: number) => ssh.resize(id, rows, cols))
+on('ssh:close', (id: string) => {
   ssh.close(id)
   serial.close(id)
 })
-ipcMain.handle('serial:list', () => serial.listPorts())
-ipcMain.on('serial:break', (_e, id: string) => void serial.sendBreak(id))
-ipcMain.on('ssh:answer', (_e, requestId: string, answer: PromptAnswer) => ssh.answerPrompt(requestId, answer))
+handle('serial:list', () => serial.listPorts())
+on('serial:break', (id: string) => void serial.sendBreak(id))
+on('ssh:answer', (requestId: string, answer: PromptAnswer) => ssh.answerPrompt(requestId, answer))
 
 function buildMenu(): void {
   const toRenderer = (action: string, arg?: number) => () =>
@@ -115,6 +184,12 @@ function buildMenu(): void {
 }
 
 app.whenReady().then(() => {
+  // Folders made by older versions (or by hand) were world-readable: tighten on every start.
+  store.ensurePrivateDir(store.dataDir())
+  if (fs.existsSync(store.logsDir())) store.ensurePrivateDir(store.logsDir())
+  // The app needs no web permissions (camera, notifications, geolocation, ...).
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
+  session.defaultSession.setPermissionCheckHandler(() => false)
   app.setAboutPanelOptions({
     applicationName: 'Termflow',
     applicationVersion: app.getVersion(),

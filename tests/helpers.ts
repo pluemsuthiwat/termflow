@@ -42,6 +42,8 @@ type Method = 'password' | 'keyboard-interactive' | 'publickey'
 
 export interface FakeServerOptions {
   legacyOnly?: boolean
+  /** Exact server algorithm lists (overrides legacyOnly). */
+  algorithms?: import('ssh2').Algorithms
   hostKey?: string
   methods?: Method[]
   password?: string
@@ -149,7 +151,7 @@ export function startServer(opts: FakeServerOptions = {}): Promise<FakeServer> {
   let open = 0
 
   const server = new Server(
-    { hostKeys: [opts.hostKey ?? hostKeys.a], ...(opts.legacyOnly ? { algorithms: LEGACY } : {}) },
+    { hostKeys: [opts.hostKey ?? hostKeys.a], ...(opts.legacyOnly ? { algorithms: LEGACY } : {}), ...(opts.algorithms ? { algorithms: opts.algorithms } : {}) },
     (client) => {
       clients.add(client)
       client.on('authentication', (ctx: AuthContext) => {

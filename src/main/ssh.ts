@@ -2,31 +2,67 @@ import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {
-  Client,
-  utils,
-  type AnyAuthMethod,
-  type ClientChannel,
-  type ConnectConfig,
-  type KeyboardInteractiveAuthMethod
+import type {
+  AnyAuthMethod,
+  ClientChannel,
+  ConnectConfig,
+  KeyboardInteractiveAuthMethod,
+  NegotiatedAlgorithms
 } from 'ssh2'
-import type { ConnectRequest, PromptAnswer, PromptRequest } from '../shared/types'
+import { AUTH_FAILED, LOGIN_CANCELLED, type ConnectRequest, type Host, type LoginRequest, type PromptAnswer, type PromptRequest } from '../shared/types'
 import { data, openLog, send, status, type SessionLog } from './session-io'
+import { addMissingDhGroups } from './dh-groups'
 import * as store from './store'
 
-// Extra algorithms for old IOS / ASA / switch firmware. Regexes only match
-// algorithms ssh2 actually supports, so an unavailable one never throws.
-const LEGACY_ALGORITHMS: ConnectConfig['algorithms'] = {
-  kex: { append: [/^diffie-hellman-group-exchange-sha1$/, /^diffie-hellman-group14-sha1$/, /^diffie-hellman-group1-sha1$/] },
-  serverHostKey: { append: [/^ssh-dss$/] },
-  cipher: { append: [/^aes(128|192|256)-cbc$/, /^3des-cbc$/] },
-  hmac: { append: [/^hmac-sha1-96$/, /^hmac-md5$/, /^hmac-md5-96$/] }
+// ssh2 is required (not imported) so it loads after the patch; imports are hoisted.
+addMissingDhGroups()
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { Client, utils } = require('ssh2') as typeof import('ssh2')
+type Client = import('ssh2').Client
+
+// Old algorithms for old IOS / ASA / switch firmware. Always offered, but after
+// the modern defaults: SSH picks the first algorithm in our list the device also
+// has, so modern devices still get modern crypto and only old ones fall back.
+// The negotiation is covered by the key exchange hash, so it can't be downgraded.
+// Regexes only match algorithms ssh2 actually supports, so none of them throws.
+const LEGACY = {
+  // group14 first: group exchange gets a prime from the device that takes seconds
+  // to validate when it is large (up to 8192 bits).
+  kex: [/^diffie-hellman-group14-sha1$/, /^diffie-hellman-group-exchange-sha1$/, /^diffie-hellman-group1-sha1$/],
+  serverHostKey: [/^ssh-dss$/],
+  cipher: [/^aes(128|192|256)-cbc$/, /^3des-cbc$/, /^blowfish-cbc$/, /^arcfour(256|128)?$/],
+  hmac: [/^hmac-sha1-96$/, /^hmac-md5$/, /^hmac-md5-96$/]
+}
+// Modern but not in ssh2's defaults: AES-GCM under its RFC 5647 names, which some
+// IOS-XE releases offer instead of the @openssh.com ones.
+const EXTRA_CIPHERS = [/^aes(128|256)-gcm$/]
+const ALGORITHMS = {
+  kex: { append: LEGACY.kex },
+  serverHostKey: { append: LEGACY.serverHostKey },
+  cipher: { append: [...EXTRA_CIPHERS, ...LEGACY.cipher] },
+  hmac: { append: LEGACY.hmac }
 } as unknown as ConnectConfig['algorithms']
+
+/** True if the device could only agree on one of the old algorithms. */
+function usesLegacy(n: NegotiatedAlgorithms): boolean {
+  const used: [RegExp[], string][] = [
+    [LEGACY.kex, n.kex],
+    [LEGACY.serverHostKey, n.serverHostKey],
+    [LEGACY.cipher, n.cs.cipher],
+    [LEGACY.cipher, n.sc.cipher],
+    [LEGACY.hmac, n.cs.mac],
+    [LEGACY.hmac, n.sc.mac]
+  ]
+  return used.some(([res, name]) => res.some((re) => re.test(name)))
+}
 
 interface Session {
   client: Client
+  host: Host
   stream?: ClientChannel
   log?: SessionLog
+  /** Logged in via login(), waiting for its tab to open the shell. */
+  unclaimed?: NodeJS.Timeout
 }
 
 const sessions = new Map<string, Session>()
@@ -70,13 +106,20 @@ function expandHome(p: string): string {
   return p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p
 }
 
-export async function connect(req: ConnectRequest): Promise<void> {
+/**
+ * Connect and authenticate, resolving once logged in. Setup problems (missing key, ...)
+ * throw right away. With `strict`, a rejected saved/typed password fails the login
+ * instead of asking the user to type another one.
+ */
+function authenticate(req: LoginRequest, strict: boolean): Promise<void> {
   const host = store.getHost(req.hostId)
   if (!host) throw new Error('Host not found')
 
   const secret = req.secret ?? store.getSecret(host.id)
 
   const hostPort = `${host.host}:${host.port}`
+  // Set when the user dismisses a host-key or device prompt.
+  let cancelled = false
   const config: ConnectConfig = {
     host: host.host,
     port: host.port,
@@ -84,6 +127,7 @@ export async function connect(req: ConnectRequest): Promise<void> {
     readyTimeout: 20000,
     keepaliveInterval: 15000,
     keepaliveCountMax: 4,
+    algorithms: ALGORITHMS,
     hostVerifier: ((key: Buffer, verify: (ok: boolean) => void) => {
       const keyType = keyTypeOf(key)
       const fingerprint = fingerprintOf(key)
@@ -100,11 +144,11 @@ export async function connect(req: ConnectRequest): Promise<void> {
       }).then((a) => {
         const ok = 'accept' in a && a.accept
         if (ok) store.setKnownHost(hostPort, { keyType, fingerprint, addedAt: new Date().toISOString() })
+        else cancelled = true
         verify(ok)
       })
     }) as ConnectConfig['hostVerifier']
   }
-  if (host.legacy) config.algorithms = LEGACY_ALGORITHMS
 
   // Build the list of auth attempts up front so key problems surface as clear errors.
   const username = host.username
@@ -141,7 +185,7 @@ export async function connect(req: ConnectRequest): Promise<void> {
   }
 
   const client = new Client()
-  const session: Session = { client }
+  const session: Session = { client, host }
   sessions.set(req.sessionId, session)
   status(req.sessionId, { state: 'connecting' })
 
@@ -149,7 +193,7 @@ export async function connect(req: ConnectRequest): Promise<void> {
   // saved password if that hasn't been tried yet; otherwise (wrong password,
   // OTP, token, ...) ask the user. Up to 3 tries, like OpenSSH.
   let secretTried = false
-  let cancelled = false
+  let passwordRejected = false
   // True once the user typed answers by hand, i.e. the stored/typed secret alone wasn't enough.
   let manualAnswers = false
   const keyboard: KeyboardInteractiveAuthMethod = {
@@ -157,9 +201,17 @@ export async function connect(req: ConnectRequest): Promise<void> {
     username,
     prompt: (name, instructions, _lang, prompts, finish) => {
       if (prompts.length === 0) return finish([])
-      if (host.auth === 'password' && secret && !secretTried && prompts.every((p) => !p.echo)) {
-        secretTried = true
-        return finish(prompts.map(() => secret))
+      if (host.auth === 'password' && secret && prompts.every((p) => !p.echo)) {
+        if (!secretTried) {
+          secretTried = true
+          return finish(prompts.map(() => secret))
+        }
+        if (strict) {
+          // Asked for the password again: it was wrong. One try only, then let the user fix it.
+          passwordRejected = true
+          client.end()
+          return
+        }
       }
       ask({
         kind: 'keyboard',
@@ -194,41 +246,102 @@ export async function connect(req: ConnectRequest): Promise<void> {
     return next(false as unknown as AnyAuthMethod)
   }
 
-  client.on('ready', () => {
-    store.touchHost(host.id)
-    if (req.secret && req.saveSecret && !manualAnswers) store.setSecret(host.id, req.secret)
-    client.shell({ term: 'xterm-256color', rows: req.rows, cols: req.cols }, (err, stream) => {
-      if (err) {
-        status(req.sessionId, { state: 'closed', error: err.message })
-        client.end()
-        return
+  // Remember whether this is old gear, for the "legacy" badge.
+  client.on('handshake', (negotiated) => store.setLegacy(host.id, usesLegacy(negotiated)))
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const fail = (message: string): void => {
+      if (settled) return
+      settled = true
+      reject(new Error(message))
+    }
+
+    client.on('ready', () => {
+      settled = true
+      store.touchHost(host.id)
+      if (req.secret && req.saveSecret && !manualAnswers) {
+        try {
+          store.setSecret(host.id, req.secret)
+        } catch (err) {
+          // Keychain unavailable: log in anyway, just don't keep the password (never in plain text).
+          console.warn('Password not saved:', (err as Error).message)
+        }
       }
-      session.stream = stream
-      if (host.logSession) session.log = openLog(host.name || host.host)
-      const onData = (chunk: Buffer): void => {
-        data(req.sessionId, chunk)
-        session.log?.write(chunk)
-      }
-      stream.on('data', onData)
-      stream.stderr.on('data', onData)
-      stream.on('close', () => client.end())
-      status(req.sessionId, { state: 'ready', logFile: session.log?.file })
+      resolve()
     })
-  })
 
-  client.on('error', (err) => {
-    status(req.sessionId, { state: 'closed', error: err.message })
-  })
+    client.on('error', (err) => {
+      const level = (err as Error & { level?: string }).level
+      fail(
+        cancelled
+          ? LOGIN_CANCELLED
+          : strict && level === 'client-authentication' && host.auth === 'password'
+            ? AUTH_FAILED
+            : err.message
+      )
+      status(req.sessionId, { state: 'closed', error: err.message })
+    })
 
-  client.on('close', () => {
-    cancelPrompts(req.sessionId)
-    const s = sessions.get(req.sessionId)
-    s?.log?.end()
-    sessions.delete(req.sessionId)
-    status(req.sessionId, { state: 'closed' })
-  })
+    client.on('close', () => {
+      fail(passwordRejected ? AUTH_FAILED : cancelled ? LOGIN_CANCELLED : 'Connection closed')
+      cancelPrompts(req.sessionId)
+      const s = sessions.get(req.sessionId)
+      clearTimeout(s?.unclaimed)
+      s?.log?.end()
+      sessions.delete(req.sessionId)
+      status(req.sessionId, { state: 'closed' })
+    })
 
-  client.connect(config)
+    client.connect(config)
+  })
+}
+
+function openShell(sessionId: string, session: Session, rows: number, cols: number): void {
+  const { client, host } = session
+  client.shell({ term: 'xterm-256color', rows, cols }, (err, stream) => {
+    if (err) {
+      status(sessionId, { state: 'closed', error: err.message })
+      client.end()
+      return
+    }
+    session.stream = stream
+    if (host.logSession) session.log = openLog(host.name || host.host)
+    const onData = (chunk: Buffer): void => {
+      data(sessionId, chunk)
+      session.log?.write(chunk)
+    }
+    stream.on('data', onData)
+    stream.stderr.on('data', onData)
+    stream.on('close', () => client.end())
+    status(sessionId, { state: 'ready', logFile: session.log?.file })
+  })
+}
+
+/** Log in without opening a shell, so a wrong password is caught before a tab opens. */
+export async function login(req: LoginRequest): Promise<void> {
+  await authenticate(req, true)
+  const session = sessions.get(req.sessionId)
+  // Hang up if no tab claims the session (e.g. the window went away).
+  if (session) session.unclaimed = setTimeout(() => session.client.end(), 30000)
+}
+
+export async function connect(req: ConnectRequest): Promise<void> {
+  const pre = sessions.get(req.sessionId)
+  if (pre?.unclaimed) {
+    clearTimeout(pre.unclaimed)
+    pre.unclaimed = undefined
+    openShell(req.sessionId, pre, req.rows, req.cols)
+    return
+  }
+  // Errors after this point arrive as session status.
+  authenticate(req, false).then(
+    () => {
+      const session = sessions.get(req.sessionId)
+      if (session) openShell(req.sessionId, session, req.rows, req.cols)
+    },
+    () => {}
+  )
 }
 
 export function write(sessionId: string, data: string): void {

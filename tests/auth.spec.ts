@@ -75,47 +75,85 @@ test.describe('password auth', () => {
     expect(fs.readFileSync(path.join(ui!.dataDir, 'hosts.json'), 'utf8')).not.toContain('cisco123')
   })
 
-  test('wrong password re-prompts, then succeeds', async () => {
+  test('wrong password is reported in the dialog before any tab opens; retry succeeds', async () => {
     const { h, win, server } = await setup({ methods: ['keyboard-interactive'] })
-    await connectTo(win, h.name, 'wrong')
-    await expect(win.locator('.modal h2')).toHaveText('Device login')
-    await win.locator('.modal input[type=password]').fill('cisco123')
-    await win.locator('.modal').getByRole('button', { name: 'Continue' }).click()
+    await connectTo(win, h.name, 'wrong1')
+    await expect(win.locator('.modal [role=alert]')).toHaveText('Wrong username or password')
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
+    await expect(win.locator('.modal input[type=password]')).toHaveValue('')
+    await expect(win.locator('.modal input[type=password]')).toBeFocused()
+    const input = win.locator('.modal input[type=password]')
+    await input.fill('wrong2')
+    await win.locator('.modal').getByRole('button', { name: 'Connect', exact: true }).click()
+    await expect(input).toBeDisabled()
+    await expect(input).toHaveValue('') // cleared once the second attempt failed
+    await expect(win.locator('.modal [role=alert]')).toHaveText('Wrong username or password')
+    await input.fill('cisco123')
+    await win.locator('.modal').getByRole('button', { name: 'Connect', exact: true }).click()
     await expectReady(win)
-    expect(server.authAttempts().map((a) => a.type === 'auth' && a.answers)).toEqual([['wrong'], ['cisco123']])
+    await expect(win.locator('.modal')).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
+    // One attempt per Connect click, never an automatic re-prompt (AAA lockout).
+    expect(server.authAttempts().map((a) => a.type === 'auth' && a.ok)).toEqual([false, false, true])
+  })
+
+  test('wrong password over the plain "password" method is caught too', async () => {
+    const { h, win, server } = await setup({ methods: ['password'] })
+    await connectTo(win, h.name, 'wrong')
+    await expect(win.locator('.modal [role=alert]')).toHaveText('Wrong username or password')
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
+    expect(server.authAttempts()).toHaveLength(1)
   })
 
   test('a rejected password is not saved even with "save" ticked', async () => {
     const { h, win } = await setup({ methods: ['keyboard-interactive'] })
     await connectTo(win, h.name, 'wrong', true)
-    await expect(win.locator('.modal h2')).toHaveText('Device login')
-    await win.locator('.modal input[type=password]').fill('cisco123')
-    await win.locator('.modal').getByRole('button', { name: 'Continue' }).click()
-    await expectReady(win)
+    await expect(win.locator('.modal [role=alert]')).toHaveText('Wrong username or password')
     expect(fs.existsSync(path.join(ui!.dataDir, 'secrets.json'))).toBe(false)
+    await win.locator('.modal input[type=password]').fill('cisco123')
+    await win.locator('.modal').getByRole('button', { name: 'Connect', exact: true }).click()
+    await expectReady(win)
+    // "Save" stayed ticked, so the accepted password is stored.
+    await expect.poll(() => fs.existsSync(path.join(ui!.dataDir, 'secrets.json'))).toBe(true)
   })
 
-  test('three wrong passwords fail cleanly after at most 3 attempts', async () => {
+  test('wrong saved password: asks for a new one and replaces the saved one', async () => {
     const { h, win, server } = await setup({ methods: ['keyboard-interactive'] })
-    await connectTo(win, h.name, 'wrong1')
-    for (const pw of ['wrong2', 'wrong3']) {
-      await expect(win.locator('.modal h2')).toHaveText('Device login')
-      await win.locator('.modal input[type=password]').fill(pw)
-      await win.locator('.modal').getByRole('button', { name: 'Continue' }).click()
-    }
-    await expect(activeTerm(win)).toContainText('All configured authentication methods failed')
+    await rowAction(win, h.name, 'Edit…')
+    await win.locator('.modal input[type=password]').fill('old-password')
+    await win.locator('.modal').getByRole('button', { name: 'Save', exact: true }).click()
     await expect(win.locator('.modal')).toHaveCount(0)
-    expect(server.authAttempts()).toHaveLength(3)
+
+    await connectTo(win, h.name)
+    await expect(win.locator('.modal [role=alert]')).toHaveText('Wrong username or password')
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
+    await expect(win.locator('.modal input[type=checkbox]')).toBeChecked()
+    await win.locator('.modal input[type=password]').fill('cisco123')
+    await win.locator('.modal').getByRole('button', { name: 'Connect', exact: true }).click()
+    await expectReady(win)
+
+    // Next time the new saved password just works.
+    await win.waitForTimeout(200) // host list refresh after save
+    await connectTo(win, h.name)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(2)
+    await expectReady(win)
+    expect(server.authAttempts().map((a) => a.type === 'auth' && a.ok)).toEqual([false, true, true])
   })
 
-  test('cancelling the prompt does not send an extra (empty) attempt', async () => {
-    const { h, win, server } = await setup({ methods: ['keyboard-interactive'] })
-    await connectTo(win, h.name, 'wrong')
+  test('cancelling the device prompt closes the login without sending anything', async () => {
+    const { h, win, server } = await setup({
+      methods: ['keyboard-interactive'],
+      kbdPrompts: [
+        { prompt: 'Password: ', echo: false },
+        { prompt: 'OTP code: ', echo: true }
+      ]
+    })
+    await connectTo(win, h.name, 'cisco123')
     await expect(win.locator('.modal h2')).toHaveText('Device login')
     await win.locator('.modal').getByRole('button', { name: 'Cancel' }).click()
-    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
-    await expect(activeTerm(win)).toContainText('Disconnected')
-    expect(server.authAttempts()).toHaveLength(1)
+    await expect(win.locator('.modal')).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
+    expect(server.authAttempts()).toHaveLength(0)
   })
 
   test('password + OTP prompts are shown to the user, not auto-filled', async () => {
@@ -215,23 +253,61 @@ test.describe('ssh-agent auth', () => {
 })
 
 test.describe('algorithms & connectivity', () => {
-  test('legacy-only device fails without the legacy toggle', async () => {
+  const savedHost = (): Host => JSON.parse(fs.readFileSync(path.join(ui!.dataDir, 'hosts.json'), 'utf8'))[0]
+
+  test('legacy-only device connects with no setting and is marked legacy', async () => {
     const { h, win } = await setup({ legacyOnly: true }, { legacy: false })
     await connectTo(win, h.name, 'cisco123')
-    await expect(activeTerm(win)).toContainText('no matching key exchange algorithm')
+    await expectReady(win)
+    expect(savedHost().legacy).toBe(true)
+    await expect(win.locator('.host .badge')).toHaveText(['legacy'])
   })
 
-  test('legacy-only device works with the legacy toggle', async () => {
-    const { h, win } = await setup({ legacyOnly: true }, { legacy: true })
+  test('IOS 12.2-style device (diffie-hellman-group1-sha1 only) connects', async () => {
+    // Electron's BoringSSL lacks this DH group; src/main/dh-groups.ts provides it.
+    const { h, win } = await setup(
+      {
+        algorithms: {
+          kex: ['diffie-hellman-group1-sha1'],
+          cipher: ['aes128-cbc', '3des-cbc'],
+          hmac: ['hmac-sha1', 'hmac-md5'],
+          serverHostKey: ['ssh-rsa']
+        }
+      },
+      { legacy: false }
+    )
     await connectTo(win, h.name, 'cisco123')
     await expectReady(win)
+    expect(savedHost().legacy).toBe(true)
+  })
+
+  test('IOS-XE 17-style device offering AES-GCM under RFC 5647 names connects, not marked legacy', async () => {
+    const { h, win } = await setup({
+      algorithms: {
+        kex: ['ecdh-sha2-nistp521', 'ecdh-sha2-nistp384'],
+        cipher: ['aes256-gcm', 'aes128-gcm'],
+        hmac: ['hmac-sha2-512'],
+        serverHostKey: ['rsa-sha2-512']
+      }
+    })
+    await connectTo(win, h.name, 'cisco123')
+    await expectReady(win)
+    expect(savedHost().legacy).toBe(false)
+  })
+
+  test('modern device keeps modern algorithms; a stale legacy mark is cleared', async () => {
+    const { h, win } = await setup({}, { legacy: true })
+    await connectTo(win, h.name, 'cisco123')
+    await expectReady(win)
+    expect(savedHost().legacy).toBe(false)
+    await expect(win.locator('.host .badge')).toHaveCount(0)
   })
 
   test('connection refused shows a readable error', async () => {
     const { h, win } = await setup({})
     await server!.stop()
     await connectTo(win, h.name, 'cisco123')
-    await expect(activeTerm(win)).toContainText('ECONNREFUSED')
-    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
+    await expect(win.locator('.modal [role=alert]')).toContainText('ECONNREFUSED')
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
   })
 })

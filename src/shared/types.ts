@@ -47,7 +47,7 @@ export interface Host {
   group: string
   auth: AuthMethod
   keyPath?: string
-  /** Enable old KEX/cipher/MAC/host-key algorithms for legacy network gear. */
+  /** Detected on connect: the device only agreed on old KEX/cipher/MAC/host-key algorithms. */
   legacy: boolean
   /** Write a plain-text session log to the logs directory. */
   logSession: boolean
@@ -78,6 +78,14 @@ export interface ConnectRequest {
   rows: number
   cols: number
 }
+
+/** Log in to a saved SSH host before its tab opens. */
+export type LoginRequest = Pick<ConnectRequest, 'sessionId' | 'hostId' | 'secret' | 'saveSecret'>
+
+/** Login error when the device rejected the password. */
+export const AUTH_FAILED = 'Wrong username or password'
+/** Login error when the user dismissed a host-key or device prompt. */
+export const LOGIN_CANCELLED = 'Login cancelled'
 
 export type PromptRequest =
   | {
@@ -123,7 +131,7 @@ export interface ShellApi {
   /** Show one log file selected in Finder. */
   revealLog(file: string): Promise<void>
   dataDir(): Promise<string>
-  /** App version from package.json, e.g. "0.1.0". */
+  /** App version from package.json, e.g. "1.0.0". */
   version(): Promise<string>
   pickKeyFile(): Promise<string | null>
 
@@ -132,6 +140,8 @@ export interface ShellApi {
   onSerialPorts(cb: (ports: SerialPortInfo[], added: SerialPortInfo[]) => void): () => void
   sendBreak(sessionId: string): void
 
+  /** Authenticate without opening a shell; a tab then calls connect() with the same sessionId. */
+  login(req: LoginRequest): Promise<void>
   connect(req: ConnectRequest): Promise<void>
   write(sessionId: string, data: string): void
   resize(sessionId: string, rows: number, cols: number): void

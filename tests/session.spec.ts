@@ -65,7 +65,9 @@ test.describe('host keys', () => {
     const { h, win, dataDir } = await setup({}, {}, 'none')
     await connectTo(win, h.name, 'cisco123')
     await win.locator('.modal').getByRole('button', { name: 'Cancel' }).click()
-    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
+    // Login is abandoned quietly: no error dialog, no tab.
+    await expect(win.locator('.modal')).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
     expect(readJson(dataDir, 'known_hosts.json')).toBeUndefined()
     expect(shellCount()).toBe(0)
   })
@@ -82,25 +84,15 @@ test.describe('host keys', () => {
     expect(known[`127.0.0.1:${server.port}`].fingerprint).toBe(fingerprint(hostKeys.a))
   })
 
-  test('closing the tab while the host-key dialog is open dismisses it', async () => {
+  test('cancelling a login while it is being checked hangs up', async () => {
     const { h, win } = await setup({}, {}, 'none')
     await connectTo(win, h.name, 'cisco123')
     await expect(win.locator('.modal h2')).toHaveText('Unknown host key')
-    await menu(ui!.app, 'Close Tab')
-    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
-    await expect(win.locator('.modal')).toHaveCount(0)
-    await expect.poll(closeCount).toBe(1)
-  })
-
-  test('closing the tab while a password prompt is open dismisses it', async () => {
-    const { h, win } = await setup({ methods: ['keyboard-interactive'] })
-    await connectTo(win, h.name, 'wrong')
-    await expect(win.locator('.modal h2')).toHaveText('Device login')
-    await menu(ui!.app, 'Close Tab')
-    await expect(win.locator('.modal')).toHaveCount(0)
+    await win.locator('.modal').getByRole('button', { name: 'Cancel' }).click()
     await expect.poll(closeCount).toBe(1)
     // App still usable afterwards.
     await connectTo(win, h.name, 'cisco123')
+    await trustHostKey(win)
     await expectReady(win)
   })
 })

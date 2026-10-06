@@ -50,16 +50,16 @@ test.describe('host management', () => {
     await field(win, 'Username').fill('netadmin')
     await field(win, 'Group').fill('Site A')
     await win.locator('.modal input[type=password]').fill('S3cret!pw')
-    await win.locator('.modal label.check', { hasText: 'Legacy algorithms' }).locator('input').check()
+    await expect(win.locator('.modal label.check', { hasText: 'Log session' })).toBeVisible()
+    await expect(win.locator('.modal label.check', { hasText: 'Legacy' })).toHaveCount(0) // detected, not a setting
     await win.locator('.modal').getByRole('button', { name: 'Save', exact: true }).click()
 
     await expect(win.locator('.modal')).toHaveCount(0)
     await expect(win.locator('.host-list h3')).toHaveText(['Default', 'Site A'])
     await expect(win.locator('.host')).toContainText('core-sw-01')
-    await expect(win.locator('.host .badge')).toHaveText(['legacy'])
 
     const [saved] = hostsFile(dataDir)
-    expect(saved).toMatchObject({ name: 'core-sw-01', host: '10.10.0.1', port: 2201, username: 'netadmin', group: 'Site A', legacy: true })
+    expect(saved).toMatchObject({ name: 'core-sw-01', host: '10.10.0.1', port: 2201, username: 'netadmin', group: 'Site A', legacy: false })
     expect(Object.keys(saved)).not.toContain('secret')
     expect(Object.keys(saved)).not.toContain('hasSecret')
     const raw = fs.readFileSync(path.join(dataDir, 'secrets.json'), 'utf8')
@@ -249,8 +249,9 @@ test('pressing Enter in the host form saves and connects', async () => {
   await modal.locator('label', { hasText: 'Username' }).locator('input').fill('admin')
   await modal.locator('input[type=password]').fill('pw')
   await modal.locator('input[type=password]').press('Enter')
-  await expect(win.locator('.modal')).toHaveCount(0)
-  await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
+  // Nothing listens on port 1: the login fails in the dialog, before a tab opens.
+  await expect(win.locator('.modal [role=alert]')).toContainText('ECONNREFUSED')
+  await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
   expect(readJson<Host[]>(dataDir, 'hosts.json')).toEqual([expect.objectContaining({ host: '127.0.0.1', port: 1, username: 'admin' })])
 })
 

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { portName } from '../../shared/hosts'
 import { IconFolder } from './icons'
 import {
@@ -280,11 +280,6 @@ export function HostForm({
                 {forget && <span className="muted">Saved secret will be removed.</span>}
               </label>
             )}
-            <label className="check">
-              <input type="checkbox" checked={h.legacy} onChange={(e) => set('legacy', e.target.checked)} />
-              Legacy algorithms
-              <span className="muted">— DH group1/14-sha1, CBC ciphers, ssh-dss, hmac-md5 (old IOS/ASA/switches)</span>
-            </label>
           </>
         )}
         <div className="log-row">
@@ -531,35 +526,71 @@ export function ConsoleDialog({
 
 export function PasswordDialog({
   host,
+  askPassword,
+  busy,
+  error,
+  defaultSave,
   onSubmit,
   onCancel
 }: {
   host: HostView
-  onSubmit: (pw: string, save: boolean) => void
+  /** false while trying the saved password. */
+  askPassword: boolean
+  busy: boolean
+  error?: string
+  defaultSave: boolean
+  /** pw is undefined when the saved password should be used. */
+  onSubmit: (pw: string | undefined, save: boolean) => void
   onCancel: () => void
 }) {
   const [pw, setPw] = useState('')
-  const [save, setSave] = useState(false)
+  const [save, setSave] = useState(defaultSave)
+  const input = useRef<HTMLInputElement>(null)
+  // After a failed attempt, clear the field and put the cursor back for a retry.
+  useEffect(() => {
+    if (busy || !error) return
+    setPw('')
+    input.current?.focus()
+  }, [busy, error])
+  const target = `${host.username}@${host.host}`
   return (
-    <Modal title={`Password for ${host.username}@${host.host}`} onClose={onCancel}>
+    <Modal title={askPassword ? `Password for ${target}` : `Connecting to ${target}`} onClose={onCancel}>
       <form
         className="form"
         onSubmit={(e) => {
           e.preventDefault()
-          onSubmit(pw, save)
+          if (!busy) onSubmit(askPassword ? pw : undefined, save)
         }}
       >
-        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
-        <label className="check">
-          <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} />
-          Save password (encrypted via macOS Keychain)
-        </label>
+        {askPassword && (
+          <>
+            <input
+              ref={input}
+              type="password"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              disabled={busy}
+              autoFocus
+              aria-invalid={!!error}
+            />
+            <label className="check">
+              <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} disabled={busy} />
+              Save password (encrypted via macOS Keychain)
+            </label>
+          </>
+        )}
+        {busy && <p className="muted">{askPassword ? 'Checking password…' : 'Logging in with the saved password…'}</p>}
+        {error && !busy && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         <div className="actions">
           <button type="button" className="btn" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" className="btn primary">
-            Connect
+          <button type="submit" className="btn primary" disabled={busy}>
+            {busy ? 'Connecting…' : 'Connect'}
           </button>
         </div>
       </form>

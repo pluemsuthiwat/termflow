@@ -8,7 +8,6 @@ export interface Tab {
   hostId: string
   title: string
   secret?: string
-  saveSecret?: boolean
   status: SessionStatus
   /** Serial console tab; `serial` is only set for quick port sessions. */
   kind?: 'ssh' | 'serial'
@@ -59,10 +58,10 @@ export default function TerminalView({ tab, active }: Props) {
       if (id === sessionId) term.write(data)
     })
 
-    const connect = (secret?: string, saveSecret?: boolean): void => {
+    const connect = (secret?: string): void => {
       term.write(`\x1b[90mConnecting to ${tab.title}…\x1b[0m\r\n`)
       window.shell
-        .connect({ sessionId, hostId: tab.hostId, secret, saveSecret, serial: tab.serial, rows: term.rows, cols: term.cols })
+        .connect({ sessionId, hostId: tab.hostId, secret, serial: tab.serial, rows: term.rows, cols: term.cols })
         .catch((err: Error) => {
           const msg = err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
           statusRef.current = { state: 'closed', error: msg }
@@ -86,7 +85,7 @@ export default function TerminalView({ tab, active }: Props) {
     })
     ro.observe(el.current!)
 
-    connect(tab.secret, tab.saveSecret)
+    connect(tab.secret)
 
     return () => {
       ro.disconnect()

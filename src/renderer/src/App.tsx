@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isSerial, lineSettings, portName } from '../../shared/hosts'
 import {
+  AUTH_FAILED,
   DEFAULT_SERIAL,
+  LOGIN_CANCELLED,
   type HostInput,
   type HostView,
   type PromptRequest,
@@ -57,7 +59,15 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [editing, setEditing] = useState<HostInput | null>(null)
-  const [askPassword, setAskPassword] = useState<HostView | null>(null)
+  // Password login checked before its tab opens. sessionId is set while an attempt is running.
+  const [login, setLogin] = useState<{
+    host: HostView
+    sessionId?: string
+    askPassword: boolean
+    error?: string
+    save: boolean
+  } | null>(null)
+  const loginId = useRef<string | undefined>(undefined)
   const [prompts, setPrompts] = useState<PromptRequest[]>([])
   const [dataDir, setDataDir] = useState('')
   const [serialPorts, setSerialPorts] = useState<SerialPortInfo[]>([])
@@ -131,30 +141,63 @@ export default function App() {
     }
   }, [reload])
 
-  const addTab = (tab: Omit<Tab, 'sessionId' | 'status' | 'title'> & { title: string }): void => {
-    const sessionId = crypto.randomUUID()
+  const addTab = (tab: Omit<Tab, 'sessionId' | 'status' | 'title'> & { title: string }, sessionId: string = crypto.randomUUID()): void => {
     const same = tabs.filter((t) => t.hostId === tab.hostId).length
     const title = tab.title + (same ? ` (${same + 1})` : '')
     setTabs((ts) => [...ts, { ...tab, sessionId, title, status: { state: 'connecting' } }])
     setActiveId(sessionId)
   }
 
-  const openTab = (host: HostView, secret?: string, saveSecret?: boolean): void => {
+  const openTab = (host: HostView, secret?: string, sessionId?: string): void => {
     const serial = isSerial(host) && host.serial
-    addTab({
-      hostId: host.id,
-      title: host.name || host.host || (serial ? portName(serial.path) : ''),
-      secret,
-      saveSecret,
-      kind: serial ? 'serial' : 'ssh',
-      detail: serial ? `${portName(serial.path)} · ${lineSettings(serial)}` : undefined
-    })
+    addTab(
+      {
+        hostId: host.id,
+        title: host.name || host.host || (serial ? portName(serial.path) : ''),
+        secret,
+        kind: serial ? 'serial' : 'ssh',
+        detail: serial ? `${portName(serial.path)} · ${lineSettings(serial)}` : undefined
+      },
+      sessionId
+    )
+  }
+
+  /** Log in first; the tab only opens once the password was accepted. secret undefined = saved one. */
+  const startLogin = (host: HostView, secret?: string, save = false): void => {
+    const sessionId = crypto.randomUUID()
+    loginId.current = sessionId
+    setLogin({ host, sessionId, askPassword: secret !== undefined, save })
+    window.shell.login({ sessionId, hostId: host.id, secret, saveSecret: save }).then(
+      () => {
+        if (loginId.current !== sessionId) return window.shell.close(sessionId)
+        loginId.current = undefined
+        setLogin(null)
+        if (save) reload()
+        openTab(host, secret, sessionId)
+      },
+      (err: Error) => {
+        if (loginId.current !== sessionId) return
+        loginId.current = undefined
+        const error = err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+        if (error === LOGIN_CANCELLED) return setLogin(null)
+        // A rejected saved password gets replaced by the one typed next.
+        const rejected = error === AUTH_FAILED
+        setLogin({ host, askPassword: secret !== undefined || rejected, error, save: save || (rejected && host.hasSecret) })
+      }
+    )
+  }
+
+  const cancelLogin = (): void => {
+    if (loginId.current) window.shell.close(loginId.current)
+    loginId.current = undefined
+    setLogin(null)
   }
 
   const connectHost = (host: HostView): void => {
     // Console cables have no login step before the session opens.
-    if (!isSerial(host) && host.auth === 'password' && !host.hasSecret) setAskPassword(host)
-    else openTab(host)
+    if (isSerial(host) || host.auth !== 'password') openTab(host)
+    else if (host.hasSecret) startLogin(host)
+    else setLogin({ host, askPassword: true, save: false })
   }
 
   /** Quick console session on a detected port, without saving a host. */
@@ -449,15 +492,17 @@ export default function App() {
           }}
         />
       )}
-      {askPassword && (
+      {/* Host-key and OTP prompts for this login take its place while open. */}
+      {login && !prompts.some((p) => p.sessionId === login.sessionId) && (
         <PasswordDialog
-          host={askPassword}
-          onCancel={() => setAskPassword(null)}
-          onSubmit={(pw, save) => {
-            const h = askPassword
-            setAskPassword(null)
-            openTab(h, pw, save)
-          }}
+          key={String(login.askPassword)}
+          host={login.host}
+          askPassword={login.askPassword}
+          busy={!!login.sessionId}
+          error={login.error}
+          defaultSave={login.save}
+          onCancel={cancelLogin}
+          onSubmit={(pw, save) => startLogin(login.host, pw, save)}
         />
       )}
       {prompt && (
