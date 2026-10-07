@@ -18,6 +18,9 @@ mac:
       arch: arm64
   category: public.app-category.developer-tools
   icon: build/icon.png
+  # Lets macOS ask for Local Network access; without it LAN hosts fail with EHOSTUNREACH.
+  extendInfo:
+    NSLocalNetworkUsageDescription: Termflow connects to SSH hosts on your local network.
   # Ad-hoc signature: runs on this Mac. Sharing it needs a Developer ID
   # certificate, hardenedRuntime: true and notarization.
   identity: '-'

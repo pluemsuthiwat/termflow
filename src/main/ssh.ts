@@ -277,14 +277,15 @@ function authenticate(req: LoginRequest, strict: boolean): Promise<void> {
 
     client.on('error', (err) => {
       const level = (err as Error & { level?: string }).level
+      const message = describeError(err)
       fail(
         cancelled
           ? LOGIN_CANCELLED
           : strict && level === 'client-authentication' && host.auth === 'password'
             ? AUTH_FAILED
-            : err.message
+            : message
       )
-      status(req.sessionId, { state: 'closed', error: err.message })
+      status(req.sessionId, { state: 'closed', error: message })
     })
 
     client.on('close', () => {
@@ -299,6 +300,16 @@ function authenticate(req: LoginRequest, strict: boolean): Promise<void> {
 
     client.connect(config)
   })
+}
+
+// macOS blocks LAN connections from apps without Local Network permission and reports
+// it as "no route to host", even when the host answers ping from Terminal.
+function describeError(err: Error): string {
+  const code = (err as NodeJS.ErrnoException).code
+  if (code === 'EHOSTUNREACH' && process.platform === 'darwin') {
+    return `${err.message}. If this host is on your local network, allow Termflow in System Settings › Privacy & Security › Local Network, then try again.`
+  }
+  return err.message
 }
 
 function openShell(sessionId: string, session: Session, rows: number, cols: number): void {
