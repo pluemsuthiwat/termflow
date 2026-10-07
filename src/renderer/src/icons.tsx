@@ -140,6 +140,26 @@ export const IconSidebar = (p: P) => (
   </Svg>
 )
 
+export const IconSplit = (p: P) => (
+  <Svg {...p}>
+    <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
+    <path d="M8 2.5v11M10.5 8h2.5" />
+  </Svg>
+)
+
+export const IconSplitDown = (p: P) => (
+  <Svg {...p}>
+    <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
+    <path d="M1.5 8h13" />
+  </Svg>
+)
+
+export const IconMaximize = (p: P) => (
+  <Svg {...p}>
+    <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" />
+  </Svg>
+)
+
 export const IconLogs = (p: P) => (
   <Svg {...p}>
     <path d="M4 1.5h5.5L13 5v9.5H4z" />

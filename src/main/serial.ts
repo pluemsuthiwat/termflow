@@ -106,7 +106,7 @@ export async function connect(req: ConnectRequest): Promise<void> {
   sessions.set(req.sessionId, session)
   mockHooks?.opened.push({ path, baudRate: settings.baudRate, dataBits: settings.dataBits, parity: settings.parity, stopBits: settings.stopBits })
   if (host) store.touchHost(host.id)
-  if (host?.logSession) session.log = openLog(host.name || portName(path))
+  if (host ? host.logSession : req.log) session.log = openLog('console', host?.name || portName(path))
 
   port.on('data', (chunk: Buffer) => {
     data(req.sessionId, chunk)

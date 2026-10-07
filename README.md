@@ -56,7 +56,7 @@ prompt, and agents configured only in a shell profile (e.g. 1Password).
 | `groups.json` | group paths such as `Site A/Building 1` (so empty groups are kept) |
 | `secrets.json` | passwords / key passphrases, encrypted with Electron `safeStorage` (key held in macOS Keychain) |
 | `known_hosts.json` | trusted host-key fingerprints (`host:port` → SHA256) |
-| `logs/` | plain-text session logs for hosts with "Log session" on (owner-only, may contain device configs) |
+| `logs/ssh/`, `logs/console/` | plain-text session logs for SSH and console sessions with "Log session" on (owner-only, may contain device configs) |
 
 Private keys are referenced by path (e.g. `~/.ssh/id_ed25519`), never copied.
 Set `TERMFLOW_DATA_DIR` to use a different data directory.
@@ -70,8 +70,18 @@ Set `TERMFLOW_DATA_DIR` to use a different data directory.
 - Old devices just work, no setting: legacy algorithms (DH group14/gex/group1-sha1, aes-cbc/3des-cbc/blowfish/arcfour, ssh-dss, hmac-sha1-96/md5) are offered after the modern ones, so modern devices still negotiate modern crypto. Hosts that needed them get a `legacy` badge automatically
 - Trust-on-first-use host key check, loud warning when a key changes
 - Tabs (⌘1–9, ⌘W), keepalive every 15 s, Enter to reconnect
+- Split panes: several devices side by side in one tab, arranged any way you like
+  - **Split button** (top right of the tab bar, ⌘T): search hosts or console ports, or type `user@host`; choose the side (Auto / ← → ↑ ↓, or ⌥ + arrow), Enter connects. On the Dashboard it opens a new tab instead
+  - Each pane's header: split *that* pane, zoom it to fill the tab (⇧⌘↵; the others stay connected), move it to its own tab (⇱), close it
+  - Drag a pane by its header, a tab, or a host from the sidebar onto any edge of a pane; drop a pane on the tab bar to give it its own tab; Esc cancels
+  - Host menu → **Open in Split**, ⌥-click / ⌥↵ a host, ⌘D / ⌘⇧D split right / down with the same device, ⌥⌘ arrows move between panes, drag a divider to resize (double-click evens it out), Shell → Even Out Panes, ⌘W closes the focused pane
+  - Panes keep their sessions through every layout change; a console port already open is greyed out
+- Find in the terminal (⌘F, ⌘G / ⌘⇧G), with match count and match case
+- Multi-line paste asks first and shows what will run; "Paste line by line" sends one line every 150 ms for slow consoles, with progress and Stop
+- Text size ⌘+ / ⌘− and View → Terminal Font…, remembered
+- ⌘-click opens http(s) links in the browser
 - Session log to file with ANSI codes stripped
-- Console (serial): detects USB console cables (callout `/dev/cu.*` devices, built-in Mac ports hidden) and notices when one is plugged in; quick connect at 9600 8N1 or any baud; saved console hosts (baud, data bits, parity, stop bits, flow control) that find the cable again by USB serial number if its path changes; Send Break (⌘B) for ROMMON / password recovery
+- Console (serial): detects USB console cables (callout `/dev/cu.*` devices, built-in Mac ports hidden) and notices when one is plugged in; quick connect at 9600 8N1 or any baud; saved console hosts (baud, data bits, parity, stop bits, flow control) that find the cable again by USB serial number if its path changes; Send Break (⌘B) for ROMMON / password recovery; session logs for saved console hosts and, with "Log session to file" in the Open console dialog, for quick sessions too (the choice is remembered for quick connects)
 
 ## Security
 

@@ -19,9 +19,14 @@ import type { Host, HostInput, HostView } from '../shared/types'
 //   groups.json       group names, so empty groups survive
 //   secrets.json      passwords / key passphrases, encrypted with a Keychain-held key
 //   known_hosts.json  trusted host-key fingerprints, keyed by "host:port"
-//   logs/             session logs
+//   logs/ssh/         SSH session logs
+//   logs/console/     console (serial) session logs
 export const dataDir = (): string => app.getPath('userData')
 export const logsDir = (): string => path.join(dataDir(), 'logs')
+/** Session logs are kept apart by kind: logs/ssh and logs/console. */
+export type LogKind = 'ssh' | 'console'
+export const LOG_KINDS: LogKind[] = ['ssh', 'console']
+export const logsDirFor = (kind: LogKind): string => path.join(logsDir(), kind)
 
 const file = (name: string): string => path.join(dataDir(), name)
 

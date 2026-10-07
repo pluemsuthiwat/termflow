@@ -1,7 +1,7 @@
 {
   "name": "termflow",
   "productName": "Termflow",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "private": true,
   "license": "MIT",
   "main": "out/main/index.js",
@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

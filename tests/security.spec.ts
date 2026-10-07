@@ -113,14 +113,15 @@ test('a "serial" session cannot open arbitrary files', async () => {
 
 test('existing data and logs folders are made private at startup', async () => {
   const dataDir = newDataDir()
-  fs.mkdirSync(path.join(dataDir, 'logs'))
+  const dirs = ['logs', 'logs/ssh', 'logs/console'].map((d) => path.join(dataDir, d))
+  for (const d of dirs) fs.mkdirSync(d, { recursive: true })
   fs.chmodSync(dataDir, 0o755)
-  fs.chmodSync(path.join(dataDir, 'logs'), 0o755)
+  for (const d of dirs) fs.chmodSync(d, 0o755)
   seed(dataDir, [])
   ui = await launchApp(dataDir)
   const mode = (p: string) => fs.statSync(p).mode & 0o777
   expect(mode(dataDir)).toBe(0o700)
-  expect(mode(path.join(dataDir, 'logs'))).toBe(0o700)
+  for (const d of dirs) expect(mode(d)).toBe(0o700)
 })
 
 test('pasting into the terminal still reaches the device (permissions are locked down)', async () => {
@@ -147,10 +148,11 @@ test('data folder, session logs and log files are private to the user', async ()
   ui = await launchApp(dataDir)
   await connectTo(ui.win, h.name, 'cisco123')
   await expectReady(ui.win)
-  const logs = path.join(dataDir, 'logs')
+  const logs = path.join(dataDir, 'logs', 'ssh')
   await expect.poll(() => fs.existsSync(logs) && fs.readdirSync(logs).length).toBe(1)
   const mode = (p: string) => fs.statSync(p).mode & 0o777
   expect(mode(dataDir)).toBe(0o700)
+  expect(mode(path.join(dataDir, 'logs'))).toBe(0o700)
   expect(mode(logs)).toBe(0o700)
   expect(mode(path.join(logs, fs.readdirSync(logs)[0]))).toBe(0o600)
   expect(mode(path.join(dataDir, 'hosts.json'))).toBe(0o600)

@@ -297,7 +297,8 @@ export async function launchApp(dataDir: string, env: Record<string, string | un
 
 // ---------- UI helpers ----------
 
-export const activeTerm = (win: Page) => win.locator('.term-pane:not([hidden]) .xterm-rows')
+/** Terminal of the focused pane in the shown tab. */
+export const activeTerm = (win: Page) => win.locator('.pane.focused:not([hidden]) .xterm-rows')
 
 export async function connectTo(win: Page, name: string, password?: string, save = false): Promise<void> {
   await win.locator('.host-name', { hasText: name }).first().click()

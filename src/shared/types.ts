@@ -72,6 +72,8 @@ export interface ConnectRequest {
   hostId: string
   /** Quick serial session without a saved host. */
   serial?: SerialSettings
+  /** Quick serial session: write a session log (saved hosts use their own setting). */
+  log?: boolean
   /** One-off password / passphrase entered at connect time. */
   secret?: string
   saveSecret?: boolean
@@ -130,6 +132,32 @@ export interface AppInfo {
   repoUrl: string
 }
 
+/** Menu items handled by the page; `arg` is a tab index (selectTab) or a direction (focusPane). */
+export type MenuAction =
+  | 'closeTab'
+  | 'selectTab'
+  | 'newHost'
+  | 'home'
+  | 'back'
+  | 'search'
+  | 'sendBreak'
+  | 'toggleSidebar'
+  | 'about'
+  | 'checkUpdate'
+  | 'splitRight'
+  | 'splitDown'
+  | 'splitWith'
+  | 'zoomPane'
+  | 'evenOut'
+  | 'focusPane'
+  | 'find'
+  | 'findNext'
+  | 'findPrevious'
+  | 'fontBigger'
+  | 'fontSmaller'
+  | 'fontReset'
+  | 'fontDialog'
+
 export interface ShellApi {
   listHosts(): Promise<HostView[]>
   saveHost(input: HostInput): Promise<HostView>
@@ -174,10 +202,5 @@ export interface ShellApi {
   onStatus(cb: (sessionId: string, status: SessionStatus) => void): () => void
   onPrompt(cb: (req: PromptRequest) => void): () => void
   answerPrompt(requestId: string, answer: PromptAnswer): void
-  onMenu(
-    cb: (
-      action: 'closeTab' | 'selectTab' | 'newHost' | 'home' | 'back' | 'search' | 'sendBreak' | 'toggleSidebar' | 'about' | 'checkUpdate',
-      arg?: number
-    ) => void
-  ): () => void
+  onMenu(cb: (action: MenuAction, arg?: number | string) => void): () => void
 }

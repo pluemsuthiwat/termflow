@@ -27,6 +27,10 @@ interface Props {
   dataDir: string
   onShowGroup: (path: string) => void
   onConnect: (h: HostView) => void
+  /** Set while a terminal is shown: open the host next to its focused pane. */
+  onOpenInSplit?: (h: HostView) => void
+  /** Set while a terminal is shown: a host can be dragged onto a pane. */
+  onHostPointerDown?: (e: React.PointerEvent, h: HostView) => void
   onEdit: (h: HostView) => void
   onDuplicate: (h: HostView) => void
   onDeleteHost: (h: HostView) => Promise<void>
@@ -109,6 +113,7 @@ export default function Sidebar(p: Props) {
 
   const hostItems = (h: HostView): MenuItem[] => [
     { label: 'Connect', onSelect: () => p.onConnect(h), hint: '↵' },
+    ...(p.onOpenInSplit ? [{ label: 'Open in Split', onSelect: () => p.onOpenInSplit!(h), hint: '⌥↵' }] : []),
     'separator',
     { label: 'Edit…', onSelect: () => p.onEdit(h) },
     { label: 'Duplicate', onSelect: () => p.onDuplicate(h) },
@@ -149,6 +154,8 @@ export default function Sidebar(p: Props) {
     else if (e.key === 'ArrowUp') (rows[i - 1] ?? searchRef.current)?.focus()
     else if (e.key === 'ArrowRight' && path !== undefined && collapsed.has(path)) toggle(path)
     else if (e.key === 'ArrowLeft' && path !== undefined && !collapsed.has(path) && !searching) toggle(path)
+    // ⌥↵ like ⌥-click: open the host in a split.
+    else if (e.key === 'Enter' && e.altKey) row.dispatchEvent(new window.MouseEvent('click', { bubbles: true, altKey: true }))
     else if (e.key === 'Enter' || e.key === ' ') row.click()
     else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
       const r = row.getBoundingClientRect()
@@ -168,8 +175,9 @@ export default function Sidebar(p: Props) {
         style={{ marginLeft: indent(depth) - 8 }}
         tabIndex={-1}
         title={hostAddress(h)}
-        onClick={() => p.onConnect(h)}
+        onClick={(e) => (e.altKey && p.onOpenInSplit ? p.onOpenInSplit(h) : p.onConnect(h))}
         onContextMenu={(e) => openMenu(e, hostItems(h), `host:${h.id}`)}
+        onPointerDown={(e) => p.onHostPointerDown?.(e, h)}
       >
         <span className={`status-dot ${live ? 'live' : ''}`} title={live ? 'Connected' : 'Not connected'} />
         <div className="host-main">

@@ -252,8 +252,40 @@ test.describe('console sessions', () => {
     await win.keyboard.type('Switch>enable')
     await expect(activeTerm(win)).toContainText('Switch>enable')
     await win.locator('.tab.active .tab-close').click()
-    await expect.poll(() => fs.existsSync(path.join(dataDir, 'logs')) && fs.readdirSync(path.join(dataDir, 'logs')).length).toBe(1)
-    const file = path.join(dataDir, 'logs', fs.readdirSync(path.join(dataDir, 'logs'))[0])
+    await expect.poll(() => fs.existsSync(path.join(dataDir, 'logs', 'console')) && fs.readdirSync(path.join(dataDir, 'logs', 'console')).length).toBe(1)
+    const file = path.join(dataDir, 'logs', 'console', fs.readdirSync(path.join(dataDir, 'logs', 'console'))[0])
     await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('Switch>enable')
+  })
+
+  test('quick console sessions can be logged too; the choice is remembered for quick connects', async () => {
+    const { win, dataDir } = await start([], `${PORT}=FTDI`)
+    const logs = () => (fs.existsSync(path.join(dataDir, 'logs', 'console')) ? fs.readdirSync(path.join(dataDir, 'logs', 'console')) : [])
+    const modal = win.locator('.modal')
+
+    // Off by default: no log.
+    await win.locator('.dash-top').getByRole('button', { name: 'Console' }).click()
+    await expect(modal.getByLabel('Log session to file')).not.toBeChecked()
+    await modal.getByRole('button', { name: 'Connect' }).click()
+    await expectReady(win)
+    await expect(win.locator('.tab.active .rec')).toHaveCount(0)
+    await win.locator('.tab.active .tab-close').click()
+    expect(logs()).toEqual([])
+
+    await win.locator('.dash-top').getByRole('button', { name: 'Console' }).click()
+    await modal.getByLabel('Log session to file').check()
+    await modal.getByRole('button', { name: 'Connect' }).click()
+    await expectReady(win)
+    await expect(win.locator('.tab.active .rec')).toBeVisible()
+    await win.keyboard.type('Switch>show clock')
+    await expect(activeTerm(win)).toContainText('Switch>show clock')
+    await win.locator('.tab.active .tab-close').click()
+    await expect.poll(() => logs().length).toBe(1)
+    expect(logs()[0]).toMatch(/^cu\.usbserial-A10K_.*\.log$/)
+    await expect.poll(() => fs.readFileSync(path.join(dataDir, 'logs', 'console', logs()[0]), 'utf8')).toContain('Switch>show clock')
+
+    // Connect in the sidebar uses the remembered choice.
+    await win.locator('.serial-ports .port-row').first().click()
+    await expectReady(win)
+    await expect(win.locator('.tab.active .rec')).toBeVisible()
   })
 })

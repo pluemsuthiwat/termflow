@@ -321,7 +321,7 @@ function openShell(sessionId: string, session: Session, rows: number, cols: numb
       return
     }
     session.stream = stream
-    if (host.logSession) session.log = openLog(host.name || host.host)
+    if (host.logSession) session.log = openLog('ssh', host.name || host.host)
     const onData = (chunk: Buffer): void => {
       data(sessionId, chunk)
       session.log?.write(chunk)

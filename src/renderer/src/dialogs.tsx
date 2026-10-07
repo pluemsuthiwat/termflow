@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { portName } from '../../shared/hosts'
 import { IconFolder } from './icons'
 import { fadeClass, useScrollEdges } from './scrollEdges'
+import { clampFontSize, DEFAULT_FONT, FONT_FAMILIES, FONT_MAX, FONT_MIN, fontStack, type TermFont } from './font'
 import {
   DEFAULT_SERIAL,
   type HostInput,
@@ -12,7 +13,7 @@ import {
   type SerialSettings
 } from '../../shared/types'
 
-export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose?: () => void }) {
+export function Modal({ title, children, onClose, wide }: { title: string; children: ReactNode; onClose?: () => void; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges(ref, 'y')
   return (
@@ -21,11 +22,64 @@ export function Modal({ title, children, onClose }: { title: string; children: R
       onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
       onKeyDown={(e) => e.key === 'Escape' && onClose?.()}
     >
-      <div className={`modal scroll-fade scroll-fade-y${fadeClass(edges)}`} role="dialog" aria-label={title} ref={ref}>
+      <div className={`modal ${wide ? 'wide' : ''} scroll-fade scroll-fade-y${fadeClass(edges)}`} role="dialog" aria-label={title} ref={ref}>
         <h2>{title}</h2>
         {children}
       </div>
     </div>
+  )
+}
+
+export function FontDialog({
+  initial,
+  onSave,
+  onCancel
+}: {
+  initial: TermFont
+  onSave: (f: TermFont) => void
+  onCancel: () => void
+}) {
+  const [family, setFamily] = useState(initial.family)
+  const [size, setSize] = useState(String(initial.size))
+  return (
+    <Modal title="Terminal font" onClose={onCancel}>
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          onSave({ family, size: Number(size) || DEFAULT_FONT.size })
+        }}
+      >
+        <label>
+          Font
+          <input value={family} onChange={(e) => setFamily(e.target.value)} list="font-families" spellCheck={false} autoFocus />
+          <datalist id="font-families">
+            {FONT_FAMILIES.map((f) => (
+              <option key={f} value={f} />
+            ))}
+          </datalist>
+        </label>
+        <label>
+          Size
+          <input type="number" min={FONT_MIN} max={FONT_MAX} value={size} onChange={(e) => setSize(e.target.value)} />
+        </label>
+        <p className="font-preview" style={{ fontFamily: fontStack(family), fontSize: `${clampFontSize(Number(size) || DEFAULT_FONT.size)}px` }}>
+          Router# show ip interface brief
+        </p>
+        <p className="muted">⌘+ and ⌘− change the size from the View menu.</p>
+        <div className="actions">
+          <button type="button" className="btn" onClick={() => (setFamily(DEFAULT_FONT.family), setSize(String(DEFAULT_FONT.size)))}>
+            Default
+          </button>
+          <button type="button" className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="btn primary">
+            Save
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -432,13 +486,17 @@ function loadLastConsole(): { path?: string; baudRate?: number } {
 /** Pick a port and baud rate before opening a console session. */
 export function ConsoleDialog({
   ports,
+  log: logDefault,
   onConnect,
   onCancel
 }: {
   ports: SerialPortInfo[]
-  onConnect: (port: SerialPortInfo, baudRate: number) => void
+  /** Last choice; it also applies to quick connects from the sidebar and the cable notice. */
+  log: boolean
+  onConnect: (port: SerialPortInfo, baudRate: number, log: boolean) => void
   onCancel: () => void
 }) {
+  const [log, setLog] = useState(logDefault)
   const last = loadLastConsole()
   const [path, setPath] = useState(last.path && ports.some((p) => p.path === last.path) ? last.path : ports[0]?.path ?? '')
   const [baud, setBaud] = useState(String(last.baudRate ?? 9600))
@@ -456,7 +514,7 @@ export function ConsoleDialog({
     } catch {
       // remembering the choice is optional
     }
-    onConnect(selected, baudRate)
+    onConnect(selected, baudRate, log)
   }
 
   return (
@@ -513,6 +571,18 @@ export function ConsoleDialog({
           />
           <span className="muted hint">8 data bits, no parity, 1 stop bit, no flow control (8N1). Most switches use 9600; many newer devices use 115200.</span>
         </div>
+        <div className="log-row">
+          <label className="check">
+            <input type="checkbox" checked={log} onChange={(e) => setLog(e.target.checked)} />
+            Log session to file
+          </label>
+          {log && (
+            <button type="button" className="btn small with-icon" onClick={() => window.shell.openLogsDir()}>
+              <IconFolder size={13} /> Open logs folder
+            </button>
+          )}
+        </div>
+        {log && <span className="muted hint">Also used for Connect on the cable notice and in the sidebar.</span>}
         {error && <p className="error">{error}</p>}
         <div className="actions">
           <button type="button" className="btn" onClick={onCancel}>

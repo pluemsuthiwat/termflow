@@ -281,7 +281,8 @@ test('logs: "Open logs folder" shows up when logging is ticked; REC reveals the 
 
   await win.locator('.host-list .host', { hasText: 'console-logged' }).click()
   await win.locator('.tab.active .rec').click()
-  const logs = fs.readdirSync(path.join(dataDir, 'logs'))
+  // Console logs go to logs/console; SSH logs to logs/ssh.
+  const logs = fs.readdirSync(path.join(dataDir, 'logs', 'console'))
   expect(logs).toHaveLength(1)
-  await expect.poll(finder).toEqual([`open:${path.join(dataDir, 'logs')}`, `reveal:${path.join(dataDir, 'logs', logs[0])}`])
+  await expect.poll(finder).toEqual([`open:${path.join(dataDir, 'logs')}`, `reveal:${path.join(dataDir, 'logs', 'console', logs[0])}`])
 })

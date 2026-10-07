@@ -629,7 +629,7 @@ export default function Dashboard(p: Props) {
       )}
 
       <p className="dash-foot muted">
-        ⌘0 dashboard · ⌘K search · ⌘1–9 switch tabs · ⌘W close tab · ⌘N new host
+        ⌘0 dashboard · ⌘K search · ⌘1–9 switch tabs · ⌘W close · ⌘T split with… · ⌘F find · ⌘N new host
         {p.version && <span className="dash-version">Termflow v{p.version}</span>}
       </p>
 

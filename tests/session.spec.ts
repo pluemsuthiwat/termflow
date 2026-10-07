@@ -134,9 +134,9 @@ test.describe('terminal session', () => {
     await typeLine(win, 'exit')
     await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
 
-    const logs = fs.readdirSync(path.join(dataDir, 'logs'))
+    const logs = fs.readdirSync(path.join(dataDir, 'logs', 'ssh'))
     expect(logs).toHaveLength(1)
-    const log = fs.readFileSync(path.join(dataDir, 'logs', logs[0]), 'utf8')
+    const log = fs.readFileSync(path.join(dataDir, 'logs', 'ssh', logs[0]), 'utf8')
     expect(log).toContain(THAI)
     expect(log).toContain('GREEN-UP RED-DOWN')
     expect(log).not.toContain('\x1b')
@@ -157,8 +157,8 @@ test.describe('terminal session', () => {
     await expect(activeTerm(win)).toContainText('Cisco IOS Software')
     await typeLine(win, 'exit')
     await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
-    const logFile = fs.readdirSync(path.join(dataDir, 'logs'))[0]
-    const log = fs.readFileSync(path.join(dataDir, 'logs', logFile), 'utf8')
+    const logFile = fs.readdirSync(path.join(dataDir, 'logs', 'ssh'))[0]
+    const log = fs.readFileSync(path.join(dataDir, 'logs', 'ssh', logFile), 'utf8')
     expect(log).toContain('END-OF-SHOW-TECH')
     expect(log.split('\n').filter((l) => l === 'x'.repeat(98))).toHaveLength(60000)
     test.info().annotations.push({ type: 'show tech', description: `${elapsed} ms` })

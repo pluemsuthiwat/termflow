@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ConnectRequest, HostInput, LoginRequest, PromptAnswer } from '../shared/types'
+import type { ConnectRequest, HostInput, LoginRequest, MenuAction, PromptAnswer } from '../shared/types'
 import * as serial from './serial'
 import { attach } from './session-io'
 import * as ssh from './ssh'
@@ -165,8 +165,9 @@ handle('app:openLogsDir', () => {
   return shell.openPath(store.logsDir())
 })
 handle('app:revealLog', (file: string) => {
-  // Only reveal files inside our logs folder.
-  if (path.dirname(path.resolve(file)) === path.resolve(store.logsDir())) shell.showItemInFolder(file)
+  // Only reveal files inside our logs folders.
+  const dir = path.dirname(path.resolve(file))
+  if (store.LOG_KINDS.some((k) => dir === path.resolve(store.logsDirFor(k)))) shell.showItemInFolder(file)
 })
 handle('app:pickKeyFile', async () => {
   const res = await dialog.showOpenDialog({
@@ -196,7 +197,7 @@ on('serial:break', (id: string) => void serial.sendBreak(id))
 on('ssh:answer', (requestId: string, answer: PromptAnswer) => ssh.answerPrompt(requestId, answer))
 
 function buildMenu(): void {
-  const toRenderer = (action: string, arg?: number) => () =>
+  const toRenderer = (action: MenuAction, arg?: number | string) => () =>
     (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0])?.webContents.send('menu', action, arg)
   const template: MenuItemConstructorOptions[] = [
     {
@@ -225,6 +226,16 @@ function buildMenu(): void {
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: toRenderer('closeTab') },
         { label: 'Send Break', accelerator: 'CmdOrCtrl+B', click: toRenderer('sendBreak') },
         { type: 'separator' },
+        { label: 'Split With…', accelerator: 'CmdOrCtrl+T', click: toRenderer('splitWith') },
+        { label: 'Split Right', accelerator: 'CmdOrCtrl+D', click: toRenderer('splitRight') },
+        { label: 'Split Down', accelerator: 'CmdOrCtrl+Shift+D', click: toRenderer('splitDown') },
+        { label: 'Select Pane Left', accelerator: 'CmdOrCtrl+Alt+Left', click: toRenderer('focusPane', 'left') },
+        { label: 'Select Pane Right', accelerator: 'CmdOrCtrl+Alt+Right', click: toRenderer('focusPane', 'right') },
+        { label: 'Select Pane Above', accelerator: 'CmdOrCtrl+Alt+Up', click: toRenderer('focusPane', 'up') },
+        { label: 'Select Pane Below', accelerator: 'CmdOrCtrl+Alt+Down', click: toRenderer('focusPane', 'down') },
+        { label: 'Zoom Pane', accelerator: 'CmdOrCtrl+Shift+Enter', click: toRenderer('zoomPane') },
+        { label: 'Even Out Panes', click: toRenderer('evenOut') },
+        { type: 'separator' },
         ...Array.from({ length: 9 }, (_, i) => ({
           label: `Tab ${i + 1}`,
           accelerator: `CmdOrCtrl+${i + 1}`,
@@ -232,8 +243,40 @@ function buildMenu(): void {
         }))
       ]
     },
-    { role: 'editMenu' },
-    { role: 'viewMenu' },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+        { type: 'separator' },
+        { label: 'Find…', accelerator: 'CmdOrCtrl+F', click: toRenderer('find') },
+        { label: 'Find Next', accelerator: 'CmdOrCtrl+G', click: toRenderer('findNext') },
+        { label: 'Find Previous', accelerator: 'CmdOrCtrl+Shift+G', click: toRenderer('findPrevious') }
+      ]
+    },
+    // Not the stock View menu: its ⌘+/⌘−/⌘0 zoom the whole page, and ⌘0 is Home.
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Bigger Text', accelerator: 'CmdOrCtrl+Plus', click: toRenderer('fontBigger') },
+        // ⌘= without Shift on US keyboards.
+        { label: 'Bigger Text ', accelerator: 'CmdOrCtrl+=', click: toRenderer('fontBigger'), visible: false },
+        { label: 'Smaller Text', accelerator: 'CmdOrCtrl+-', click: toRenderer('fontSmaller') },
+        { label: 'Default Text Size', click: toRenderer('fontReset') },
+        { label: 'Terminal Font…', click: toRenderer('fontDialog') },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
     { role: 'windowMenu' }
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
@@ -242,7 +285,7 @@ function buildMenu(): void {
 app.whenReady().then(() => {
   // Folders made by older versions (or by hand) were world-readable: tighten on every start.
   store.ensurePrivateDir(store.dataDir())
-  if (fs.existsSync(store.logsDir())) store.ensurePrivateDir(store.logsDir())
+  for (const dir of [store.logsDir(), ...store.LOG_KINDS.map(store.logsDirFor)]) if (fs.existsSync(dir)) store.ensurePrivateDir(dir)
   // The app needs no web permissions (camera, notifications, geolocation, ...).
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   session.defaultSession.setPermissionCheckHandler(() => false)
