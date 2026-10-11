@@ -10,6 +10,9 @@ files:
   - package.json
   - '!**/*.map'
 asar: true
+# node-pty runs its spawn-helper as a program: it has to live outside app.asar.
+asarUnpack:
+  - node_modules/node-pty/**
 mac:
   target:
     - target: dmg

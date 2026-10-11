@@ -14,7 +14,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ConnectRequest, HostInput, LoginRequest, MenuAction, PromptAnswer } from '../shared/types'
+import { LOCAL_HOST_ID, type ConnectRequest, type HostInput, type LoginRequest, type MenuAction, type PromptAnswer } from '../shared/types'
+import * as local from './local'
 import * as serial from './serial'
 import { attach } from './session-io'
 import * as ssh from './ssh'
@@ -180,17 +181,22 @@ handle('app:pickKeyFile', async () => {
   return picked.startsWith(os.homedir() + path.sep) ? '~' + picked.slice(os.homedir().length) : picked
 })
 
-// Sessions are SSH or serial; serial ones are quick port sessions or saved serial hosts.
+// Sessions are SSH, serial or a local shell; serial ones are quick port sessions or saved serial hosts.
 const isSerialRequest = (req: ConnectRequest): boolean =>
   !!req.serial || store.getHost(req.hostId)?.kind === 'serial'
 
 handle('ssh:login', (req: LoginRequest) => ssh.login(req))
-handle('ssh:connect', (req: ConnectRequest) => (isSerialRequest(req) ? serial.connect(req) : ssh.connect(req)))
-on('ssh:write', (id: string, data: string) => (serial.has(id) ? serial.write(id, data) : ssh.write(id, data)))
-on('ssh:resize', (id: string, rows: number, cols: number) => ssh.resize(id, rows, cols))
+handle('ssh:connect', (req: ConnectRequest) =>
+  req.hostId === LOCAL_HOST_ID ? local.connect(req) : isSerialRequest(req) ? serial.connect(req) : ssh.connect(req)
+)
+on('ssh:write', (id: string, data: string) =>
+  local.has(id) ? local.write(id, data) : serial.has(id) ? serial.write(id, data) : ssh.write(id, data)
+)
+on('ssh:resize', (id: string, rows: number, cols: number) => (local.has(id) ? local.resize(id, rows, cols) : ssh.resize(id, rows, cols)))
 on('ssh:close', (id: string) => {
   ssh.close(id)
   serial.close(id)
+  local.close(id)
 })
 handle('serial:list', () => serial.listPorts())
 on('serial:break', (id: string) => void serial.sendBreak(id))
@@ -299,5 +305,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   ssh.closeAll()
   serial.closeAll()
+  local.closeAll()
   app.quit()
 })

@@ -66,9 +66,12 @@ export interface HostInput extends Omit<Host, 'id'> {
   secret?: string
 }
 
+/** hostId of a local shell session (the user's login shell on this Mac). */
+export const LOCAL_HOST_ID = 'local'
+
 export interface ConnectRequest {
   sessionId: string
-  /** Saved host id, or "port:<path>" for a quick serial session. */
+  /** Saved host id, "port:<path>" for a quick serial session, or LOCAL_HOST_ID. */
   hostId: string
   /** Quick serial session without a saved host. */
   serial?: SerialSettings

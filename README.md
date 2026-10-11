@@ -38,7 +38,7 @@ npm test         # build + Playwright end-to-end suite
 The suite drives the real Electron app against an in-process fake SSH device
 (`tests/helpers.ts`): password / keyboard-interactive / OTP / publickey / agent auth,
 legacy-only algorithms (incl. IOS 12.2-style group1-sha1), host-key trust and change, security lockdown, session logs, 6 MB output,
-resize, tabs, host CRUD, groups and dashboard, quick connect and the sidebar. Each test uses a fresh
+resize, tabs, host CRUD, groups and dashboard, quick connect, the sidebar and local terminal tabs (`/bin/sh` via `TERMFLOW_LOCAL_SHELL`). Each test uses a fresh
 temp data dir. `npm run test:dist` runs the same suite against a packaged app (see above).
 
 Serial tests use `@serialport/binding-mock` (`TERMFLOW_SERIAL_MOCK=1`).

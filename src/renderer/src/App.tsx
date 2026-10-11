@@ -3,6 +3,7 @@ import { isSerial, lineSettings, portName } from '../../shared/hosts'
 import {
   AUTH_FAILED,
   DEFAULT_SERIAL,
+  LOCAL_HOST_ID,
   LOGIN_CANCELLED,
   type HostInput,
   type HostView,
@@ -15,7 +16,7 @@ import { isWithin, joinPath, nameOf, parentOf, rebase } from '../../shared/group
 import { AboutDialog } from './About'
 import Dashboard from './Dashboard'
 import { ConsoleDialog, FontDialog, GroupDialog, HostForm, PasswordDialog, PromptDialog } from './dialogs'
-import { IconGrid, IconPlug, IconSidebar, IconSplit } from './icons'
+import { IconGrid, IconPlug, IconPlus, IconSidebar, IconSplit } from './icons'
 import {
   dividers,
   evenOut,
@@ -332,10 +333,12 @@ export default function App() {
     return t && t.kind !== 'serial' ? hosts.find((h) => h.id === t.hostId) : undefined
   }
 
-  /** ⌘D / ⌘⇧D: another session to the focused pane's host. */
+  /** ⌘D / ⌘⇧D: another session to the focused pane's host (or another local shell). */
   const splitFocused = (dir: SplitDir): void => {
+    const placement = splitPlacement(dir === 'row' ? 'right' : 'down')
+    if (tabs.find((t) => t.sessionId === activeView?.focused)?.kind === 'local') return openLocal(placement)
     const h = sameHostOf(activeView?.focused)
-    if (h) connectHost(h, splitPlacement(dir === 'row' ? 'right' : 'down'))
+    if (h) connectHost(h, placement)
   }
 
   // Console ports open in a pane; they can't be opened a second time.
@@ -386,6 +389,9 @@ export default function App() {
     const serial: SerialSettings = { ...DEFAULT_SERIAL, baudRate, path: port.path, serialNumber: port.serialNumber, vendorId: port.vendorId, productId: port.productId }
     addTab({ hostId: `port:${port.path}`, title: port.name, kind: 'serial', serial, log, detail: `${port.name} · ${lineSettings(serial)}` }, undefined, placement)
   }
+
+  /** The user's own shell on this Mac, in a new tab or beside a pane. */
+  const openLocal = (placement?: Placement): void => addTab({ hostId: LOCAL_HOST_ID, title: 'Terminal', kind: 'local' }, undefined, placement)
 
   const savePortAsHost = (port: SerialPortInfo): void =>
     setEditing({
@@ -722,6 +728,9 @@ export default function App() {
           >
             <IconGrid size={14} />
             <span>Dashboard</span>
+          </button>
+          <button className="tabbar-btn new-local" onClick={() => openLocal()} title="New terminal on this Mac" aria-label="New terminal">
+            <IconPlus size={15} />
           </button>
           <ScrollRow className="tabbar-tabs">
             {views.map((v, i) => {

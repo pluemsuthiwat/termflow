@@ -27,8 +27,8 @@ export interface Tab {
   title: string
   secret?: string
   status: SessionStatus
-  /** Serial console tab; `serial` is only set for quick port sessions. */
-  kind?: 'ssh' | 'serial'
+  /** Serial console tab; `serial` is only set for quick port sessions. Local = shell on this Mac. */
+  kind?: 'ssh' | 'serial' | 'local'
   serial?: SerialSettings
   /** Quick serial session that writes a session log. */
   log?: boolean
@@ -177,7 +177,7 @@ export default function TerminalView({ tab, visible, focused, split, zoomed, rec
 
     const connect = (secret?: string): void => {
       ips.reset()
-      term.write(`\x1b[90mConnecting to ${tab.title}…\x1b[0m\r\n`)
+      if (tab.kind !== 'local') term.write(`\x1b[90mConnecting to ${tab.title}…\x1b[0m\r\n`)
       window.shell
         .connect({ sessionId, hostId: tab.hostId, secret, serial: tab.serial, log: tab.log, rows: term.rows, cols: term.cols })
         .catch((err: Error) => {
@@ -240,7 +240,9 @@ export default function TerminalView({ tab, visible, focused, split, zoomed, rec
     const s = tab.status
     if (s.state === 'closed' && prevState.current !== 'closed') {
       const reason = s.error ? `: ${s.error}` : ''
-      term.write(`\r\n\x1b[33mDisconnected${reason}\x1b[0m\r\n\x1b[90mPress Enter to reconnect.\x1b[0m\r\n`)
+      const ended = tab.kind === 'local' ? 'Shell ended' : 'Disconnected'
+      const again = tab.kind === 'local' ? 'start a new shell' : 'reconnect'
+      term.write(`\r\n\x1b[33m${ended}${reason}\x1b[0m\r\n\x1b[90mPress Enter to ${again}.\x1b[0m\r\n`)
       setPending(null)
     }
     if (s.state === 'ready' && tab.kind === 'serial') {

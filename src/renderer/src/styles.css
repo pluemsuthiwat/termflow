@@ -2456,6 +2456,23 @@ kbd {
   background: var(--panel-2);
 }
 
+/* Beside the tabs: centred on the tab labels, which sit at the bottom of the bar. */
+.tabbar-btn.sidebar-toggle,
+.tabbar-btn.new-local {
+  align-self: flex-end;
+  padding: 4px;
+  margin-bottom: 2px;
+}
+
+.tabbar-btn.sidebar-toggle {
+  padding: 4px 6px;
+}
+
+.tabbar-btn.new-local {
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
 /* With the sidebar hidden, keep tabs clear of the macOS window buttons. */
 .app.sidebar-closed .tabbar {
   padding-left: 80px;
