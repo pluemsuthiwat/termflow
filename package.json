@@ -1,7 +1,7 @@
 {
   "name": "termflow",
   "productName": "Termflow",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "private": true,
   "license": "MIT",
   "main": "out/main/index.js",

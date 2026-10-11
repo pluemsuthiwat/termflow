@@ -29,6 +29,8 @@ mac:
   identity: '-'
   hardenedRuntime: false
   notarize: false
+# Gives the executable its own Mach-O UUID so the Local Network grant sticks to Termflow.
+afterPack: build/unique-uuid.js
 dmg:
   title: Termflow ${version}
 # Packaged app can't be run as plain Node, take NODE_OPTIONS / --inspect, or load

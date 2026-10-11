@@ -10,6 +10,7 @@ import {
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions
 } from 'electron'
+import dgram from 'node:dgram'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -288,6 +289,21 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+// macOS has no API to ask for Local Network access: it asks the first time the app sends to
+// the LAN. Without the grant, SSH to LAN hosts fails with EHOSTUNREACH. Send one empty mDNS
+// query on start so the prompt comes up front; once the user has answered, this changes nothing. Dev and test builds skip it.
+function requestLocalNetworkAccess(): void {
+  if (process.platform !== 'darwin' || !app.isPackaged || isTestPackage()) return
+  const sock = dgram.createSocket('udp4')
+  const close = () => {
+    try {
+      sock.close()
+    } catch {}
+  }
+  sock.on('error', close)
+  sock.send(Buffer.alloc(12), 5353, '224.0.0.251', close)
+}
+
 app.whenReady().then(() => {
   // Folders made by older versions (or by hand) were world-readable: tighten on every start.
   store.ensurePrivateDir(store.dataDir())
@@ -297,6 +313,7 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(() => false)
   buildMenu()
   createWindow()
+  requestLocalNetworkAccess()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
