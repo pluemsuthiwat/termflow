@@ -42,12 +42,19 @@ export const IconGrid = (p: P) => (
 )
 
 export const IconFolder = ({ open, ...p }: P & { open?: boolean }) => (
+  // Two-tone and filled: a lighter back with its tab, a solid front (tilted when open).
   <Svg {...p}>
-    {open ? (
-      <path d="M2 12.5V4a1 1 0 0 1 1-1h3l1.5 1.5H12a1 1 0 0 1 1 1V7M2 12.5 3.8 7.7A1 1 0 0 1 4.7 7H14l-2 5.5H2Z" />
-    ) : (
-      <path d="M2 4a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4Z" />
-    )}
+    <g stroke="none" fill="currentColor">
+      <path
+        opacity={0.45}
+        d="M1.75 4.25c0-.83.67-1.5 1.5-1.5H6.1c.4 0 .78.16 1.06.44L8.2 4.25h4.55c.83 0 1.5.67 1.5 1.5v6c0 .83-.67 1.5-1.5 1.5h-9.5c-.83 0-1.5-.67-1.5-1.5Z"
+      />
+      {open ? (
+        <path d="M3.55 7.1c.19-.54.7-.9 1.27-.9h9.38c.62 0 1.06.6.88 1.2l-1.2 4.2c-.18.65-.78 1.1-1.45 1.1H2.6c-.52 0-.88-.51-.71-1Z" />
+      ) : (
+        <path d="M1.75 7c0-.69.56-1.25 1.25-1.25h10c.69 0 1.25.56 1.25 1.25v4.75c0 .83-.67 1.5-1.5 1.5h-9.5c-.83 0-1.5-.67-1.5-1.5Z" />
+      )}
+    </g>
   </Svg>
 )
 
