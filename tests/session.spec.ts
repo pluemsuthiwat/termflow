@@ -4,6 +4,7 @@ import path from 'node:path'
 import type { Host } from '../src/shared/types'
 import {
   activeTerm,
+  confirmClose,
   connectTo,
   expectReady,
   fingerprint,
@@ -190,6 +191,7 @@ test.describe('tabs', () => {
     await menu(ui!.app, 'Tab 1')
     await expect(win.locator('.tab.active .tab-title')).toHaveText(h.name)
     await menu(ui!.app, 'Close Tab')
+    await confirmClose(win)
     await expect(win.locator('.tab-title')).toHaveText([`${h.name} (2)`])
     await expect.poll(() => server.openSessions()).toBe(1)
   })

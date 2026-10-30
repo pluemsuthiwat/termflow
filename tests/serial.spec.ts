@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { normalizePorts, toCalloutPath } from '../src/shared/serial-ports'
 import { DEFAULT_SERIAL, type Host } from '../src/shared/types'
-import { activeTerm, expectReady, host, launchApp, menu, newDataDir, readJson, seed, type Launched } from './helpers'
+import { activeTerm, confirmClose, expectReady, host, launchApp, menu, newDataDir, readJson, seed, type Launched } from './helpers'
 
 let ui: Launched | undefined
 
@@ -85,6 +85,46 @@ test.describe('port detection', () => {
     await win.keyboard.type('show version')
     await expect(activeTerm(win)).toContainText('show version')
     expect((await mockState(app)).opened).toEqual([{ path: PORT, baudRate: 9600, dataBits: 8, parity: 'none', stopBits: 1 }])
+  })
+
+  test('the notice lets you pick a baud rate, and Other… opens the console dialog', async () => {
+    const { win, app } = await start()
+    await mock(app, 'add', PORT)
+    const baud = win.locator('.toast').getByLabel('Baud rate')
+    await expect(baud).toHaveValue('9600')
+    await baud.selectOption('115200')
+    await win.locator('.toast').getByRole('button', { name: 'Connect' }).click()
+    await expectReady(win)
+    await expect(activeTerm(win)).toContainText('Connected to cu.usbserial-A10K · 115200 8N1')
+    expect((await mockState(app)).opened).toEqual([{ path: PORT, baudRate: 115200, dataBits: 8, parity: 'none', stopBits: 1 }])
+    await menu(app, 'Close Tab')
+    await confirmClose(win)
+
+    await mock(app, 'remove', PORT)
+    await mock(app, 'add', PORT)
+    // Remembers the last rate.
+    await expect(baud).toHaveValue('115200')
+    await baud.selectOption('other')
+    await expect(win.locator('.toast')).toHaveCount(0)
+    await expect(win.locator('.modal h2')).toHaveText('Open console')
+    await expect(win.locator('.modal select')).toHaveValue(PORT)
+  })
+
+  test('the notice has a Log checkbox shared with the Open console dialog, and no Save as host', async () => {
+    const { win, app, dataDir } = await start()
+    await mock(app, 'add', PORT)
+    const toast = win.locator('.toast')
+    await expect(toast.getByRole('button', { name: 'Save as host' })).toHaveCount(0)
+    await expect(toast.getByLabel('Log')).not.toBeChecked()
+    await toast.getByLabel('Log').check()
+    await toast.getByRole('button', { name: 'Connect' }).click()
+    await expectReady(win)
+    await expect(win.locator('.tab.active .rec')).toBeVisible()
+    await expect.poll(() => fs.existsSync(path.join(dataDir, 'logs', 'console')) && fs.readdirSync(path.join(dataDir, 'logs', 'console')).length).toBe(1)
+
+    await menu(app, 'Home')
+    await win.locator('.dash-top').getByRole('button', { name: 'Console' }).click()
+    await expect(win.locator('.modal').getByLabel('Log session to file')).toBeChecked()
   })
 
   test('unplugging removes the port and its notice', async () => {
@@ -215,18 +255,82 @@ test.describe('console sessions', () => {
     expect(readJson<Host[]>(dataDir, 'hosts.json')![0].serial!.path).toBe(PORT)
   })
 
-  test('unplugging during a session shows "Device disconnected"; Enter reconnects after re-plugging', async () => {
+  test('unplugging during a session shows "Device disconnected"; Enter retries by hand', async () => {
     const { win, app } = await start([], `${PORT}=FTDI`)
     await portRow(win).click()
     await expectReady(win)
     await mock(app, 'unplug', PORT)
     await expect(activeTerm(win)).toContainText('Device disconnected (cu.usbserial-A10K)')
+    await expect(activeTerm(win)).toContainText('Reconnects by itself when the cable is plugged back in')
+    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
+
+    // Retrying while the cable is still out fails, but the tab keeps waiting for it.
+    await win.locator('.terminals .xterm').click()
+    await win.keyboard.press('Enter')
+    await expect(activeTerm(win)).toContainText('Console cable not found')
+    await mock(app, 'add', PORT)
+    await expectReady(win)
+    await expect(win.locator('.toast')).toHaveCount(0)
+  })
+
+  test('a pulled cable reconnects by itself when plugged back in, with no "new cable" notice', async () => {
+    const { win, app } = await start([], `${PORT}=FTDI`)
+    await win.locator('.dash-top').getByRole('button', { name: 'Console' }).click()
+    await win.locator('.modal').getByRole('button', { name: '115200' }).click()
+    await win.locator('.modal').getByRole('button', { name: 'Connect' }).click()
+    await expectReady(win)
+    await mock(app, 'unplug', PORT)
     await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
 
     await mock(app, 'add', PORT)
-    await win.locator('.terminals .xterm').click()
-    await win.keyboard.press('Enter')
     await expectReady(win)
+    await expect(activeTerm(win)).toContainText('Console cable is back.')
+    await expect(win.locator('.toast')).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
+    // Same line settings as before.
+    expect((await mockState(app)).opened.map((o) => o.baudRate)).toEqual([115200, 115200])
+    await win.keyboard.type('show clock')
+    await expect(activeTerm(win)).toContainText('show clock')
+
+    // Another cable showing up meanwhile is not mistaken for it.
+    await mock(app, 'unplug', PORT)
+    await mock(app, 'add', '/dev/cu.usbserial-OTHER', { serialNumber: 'OTHER' })
+    await expect(win.locator('.toast')).toContainText('cu.usbserial-OTHER')
+    await win.waitForTimeout(1000)
+    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
+    expect((await mockState(app)).opened).toHaveLength(2)
+  })
+
+  test('a saved console host reconnects to its cable on a new path (same USB serial number)', async () => {
+    const NEW = '/dev/cu.usbserial-NEW'
+    const { win, app, dataDir } = await start([serialHost({ serial: { ...DEFAULT_SERIAL, path: PORT, serialNumber: 'SN1', vendorId: '0403' } })])
+    await mock(app, 'add', PORT, { serialNumber: 'SN1' })
+    await win.locator('.toast').getByRole('button', { name: 'Dismiss' }).click()
+    await win.locator('.host-list .host', { hasText: 'core-console' }).click()
+    await expectReady(win)
+    await mock(app, 'unplug', PORT)
+    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
+
+    await mock(app, 'add', NEW, { serialNumber: 'SN1' })
+    await expectReady(win)
+    await expect(win.locator('.toast')).toHaveCount(0)
+    expect((await mockState(app)).opened.map((o) => o.path)).toEqual([PORT, NEW])
+    expect(readJson<Host[]>(dataDir, 'hosts.json')![0].serial!.path).toBe(NEW)
+  })
+
+  test('closing a waiting tab stops it reconnecting', async () => {
+    const { win, app } = await start([], `${PORT}=FTDI`)
+    await portRow(win).click()
+    await expectReady(win)
+    await mock(app, 'unplug', PORT)
+    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
+    await menu(app, 'Close Tab')
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
+    await mock(app, 'add', PORT)
+    // Nothing is waiting for it any more, so it is a new cable again.
+    await expect(win.locator('.toast')).toContainText('Console cable connected')
+    await win.waitForTimeout(1000)
+    expect((await mockState(app)).opened).toHaveLength(1)
   })
 
   test('⌘B sends Break on serial tabs only', async () => {
@@ -252,6 +356,7 @@ test.describe('console sessions', () => {
     await win.keyboard.type('Switch>enable')
     await expect(activeTerm(win)).toContainText('Switch>enable')
     await win.locator('.tab.active .tab-close').click()
+    await confirmClose(win)
     await expect.poll(() => fs.existsSync(path.join(dataDir, 'logs', 'console')) && fs.readdirSync(path.join(dataDir, 'logs', 'console')).length).toBe(1)
     const file = path.join(dataDir, 'logs', 'console', fs.readdirSync(path.join(dataDir, 'logs', 'console'))[0])
     await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('Switch>enable')
@@ -269,6 +374,7 @@ test.describe('console sessions', () => {
     await expectReady(win)
     await expect(win.locator('.tab.active .rec')).toHaveCount(0)
     await win.locator('.tab.active .tab-close').click()
+    await confirmClose(win)
     expect(logs()).toEqual([])
 
     await win.locator('.dash-top').getByRole('button', { name: 'Console' }).click()
@@ -279,6 +385,7 @@ test.describe('console sessions', () => {
     await win.keyboard.type('Switch>show clock')
     await expect(activeTerm(win)).toContainText('Switch>show clock')
     await win.locator('.tab.active .tab-close').click()
+    await confirmClose(win)
     await expect.poll(() => logs().length).toBe(1)
     expect(logs()[0]).toMatch(/^cu\.usbserial-A10K_.*\.log$/)
     await expect.poll(() => fs.readFileSync(path.join(dataDir, 'logs', 'console', logs()[0]), 'utf8')).toContain('Switch>show clock')

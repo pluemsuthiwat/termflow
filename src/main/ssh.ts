@@ -372,6 +372,11 @@ export function close(sessionId: string): void {
   sessions.get(sessionId)?.client.end()
 }
 
+/** Sessions with a shell open, e.g. "SSH: core-sw-01". */
+export function active(): string[] {
+  return [...sessions.values()].filter((s) => s.stream).map((s) => `SSH: ${s.host.name || s.host.host}`)
+}
+
 export function closeAll(): void {
   for (const s of sessions.values()) s.client.end()
   for (const p of pendingPrompts.values()) p.resolve({ accept: false })

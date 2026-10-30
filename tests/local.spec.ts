@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { activeTerm, expectReady, launchApp, menu, newDataDir, typeLine, type Launched } from './helpers'
+import { activeTerm, confirmClose, expectReady, launchApp, menu, newDataDir, typeLine, type Launched } from './helpers'
 
 // A plain shell so the test doesn't depend on the user's zsh setup.
 const SHELL = { TERMFLOW_LOCAL_SHELL: '/bin/sh' }
@@ -109,5 +109,53 @@ test.describe('local zsh network tools', () => {
     await win.waitForTimeout(500)
     await typeLine(win, 'echo "code=$? $(stty -a | grep -o -- "-*icanon")"')
     await expect(activeTerm(win)).toContainText('code=130 icanon')
+  })
+
+  test('closing a running shell asks first: tab ✕, pane ✕ and ⌘W; Cancel keeps it', async () => {
+    ui = await launchApp(newDataDir(), SHELL)
+    const { win, app } = ui
+    const modal = win.locator('.modal')
+    await win.getByRole('button', { name: 'New terminal' }).click()
+    await expectReady(win)
+
+    await win.locator('.tab.active .tab-close').click()
+    await expect(modal.locator('h2')).toHaveText('Close Terminal?')
+    await expect(modal).toContainText('still connected. Closing ends it.')
+    await modal.getByRole('button', { name: 'Cancel' }).click()
+    await expect(modal).toHaveCount(0)
+    await expect(win.locator('.tab.active .dot.ready')).toBeVisible()
+    // Esc cancels too.
+    await menu(app, 'Close Tab')
+    await expect(modal).toBeVisible()
+    await win.keyboard.press('Escape')
+    await expect(modal).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
+
+    // Two panes in one tab: the tab's ✕ lists both.
+    await menu(app, 'Split Right')
+    await expect(win.locator('.pane.focused .pane-header .dot.ready')).toBeVisible()
+    await win.locator('.tab.active .tab-close').click()
+    await expect(modal.locator('h2')).toHaveText('Close 2 sessions?')
+    await expect(modal.locator('.close-list li')).toHaveCount(2)
+    await modal.getByRole('button', { name: 'Cancel' }).click()
+
+    // A pane's own ✕ asks about that pane only.
+    await win.locator('.pane.focused').getByRole('button', { name: 'Close pane' }).click()
+    await expect(modal.locator('h2')).toHaveText('Close Terminal (2)?')
+    await confirmClose(win)
+    await expect(win.locator('.pane-header')).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
+  })
+
+  test('a shell that has ended closes without asking', async () => {
+    ui = await launchApp(newDataDir(), SHELL)
+    const { win } = ui
+    await win.getByRole('button', { name: 'New terminal' }).click()
+    await expectReady(win)
+    await typeLine(win, 'exit')
+    await expect(win.locator('.tab.active .dot.closed')).toBeVisible()
+    await win.locator('.tab.active .tab-close').click()
+    await expect(win.locator('.modal')).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
   })
 })

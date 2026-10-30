@@ -70,6 +70,7 @@ Set `TERMFLOW_DATA_DIR` to use a different data directory.
 - Old devices just work, no setting: legacy algorithms (DH group14/gex/group1-sha1, aes-cbc/3des-cbc/blowfish/arcfour, ssh-dss, hmac-sha1-96/md5) are offered after the modern ones, so modern devices still negotiate modern crypto. Hosts that needed them get a `legacy` badge automatically
 - Trust-on-first-use host key check, loud warning when a key changes
 - Tabs (⌘1–9, ⌘W), keepalive every 15 s, Enter to reconnect
+- Closing a tab (✕), a pane (✕ / ⌘W) or the app (⌘Q / the window's close button) while SSH, console or terminal sessions are still connected asks first and lists each one; ended sessions close without asking
 - Split panes: several devices side by side in one tab, arranged any way you like
   - **Split button** (top right of the tab bar, ⌘T): search hosts or console ports, or type `user@host`; choose the side (Auto / ← → ↑ ↓, or ⌥ + arrow), Enter connects. On the Dashboard it opens a new tab instead
   - Each pane's header: split *that* pane, zoom it to fill the tab (⇧⌘↵; the others stay connected), move it to its own tab (⇱), close it
@@ -81,7 +82,7 @@ Set `TERMFLOW_DATA_DIR` to use a different data directory.
 - Text size ⌘+ / ⌘− and View → Terminal Font…, remembered
 - ⌘-click opens http(s) links in the browser
 - Session log to file with ANSI codes stripped
-- Console (serial): detects USB console cables (callout `/dev/cu.*` devices, built-in Mac ports hidden) and notices when one is plugged in; quick connect at 9600 8N1 or any baud; saved console hosts (baud, data bits, parity, stop bits, flow control) that find the cable again by USB serial number if its path changes; Send Break (⌘B) for ROMMON / password recovery; session logs for saved console hosts and, with "Log session to file" in the Open console dialog, for quick sessions too (the choice is remembered for quick connects)
+- Console (serial): detects USB console cables (callout `/dev/cu.*` devices, built-in Mac ports hidden) and notices when one is plugged in; quick connect at 9600 8N1 or any baud (also from the cable notice); saved console hosts (baud, data bits, parity, stop bits, flow control) that find the cable again by USB serial number if its path changes; a tab whose cable is pulled — or whose device's USB console port drops while it reboots — reconnects by itself with the same settings when the cable comes back (no "new cable" notice for it); Send Break (⌘B) for ROMMON / password recovery; session logs for saved console hosts and, with "Log session to file" in the Open console dialog, for quick sessions too (the choice is remembered for quick connects)
 
 ## Security
 

@@ -1,5 +1,5 @@
 import { portName } from './hosts'
-import type { SerialPortInfo } from './types'
+import type { SerialPortInfo, SerialSettings } from './types'
 
 /** macOS lists /dev/tty.* but opening those can block waiting for carrier; use the callout device. */
 export const toCalloutPath = (p: string): string => p.replace(/^\/dev\/tty\./, '/dev/cu.')
@@ -13,6 +13,12 @@ export interface RawPort {
   serialNumber?: string
   vendorId?: string
   productId?: string
+}
+
+/** The cable a console session uses: same path, or the same USB serial number on a new path. */
+export function isSameCable(s: Pick<SerialSettings, 'path' | 'serialNumber' | 'vendorId'>, p: SerialPortInfo): boolean {
+  if (p.path === s.path) return true
+  return !!s.serialNumber && p.serialNumber === s.serialNumber && (!s.vendorId || p.vendorId === s.vendorId)
 }
 
 /** Callout paths only, one entry per device, built-in ports hidden. */

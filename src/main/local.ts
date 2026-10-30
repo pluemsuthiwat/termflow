@@ -91,6 +91,11 @@ export function close(sessionId: string): void {
   sessions.get(sessionId)?.kill()
 }
 
+/** Open shells, e.g. "Terminal (vim)": what runs in the foreground right now. */
+export function active(): string[] {
+  return [...sessions.values()].map((p) => `Terminal (${path.basename(p.process || shellPath())})`)
+}
+
 export function closeAll(): void {
   for (const p of sessions.values()) p.kill()
 }

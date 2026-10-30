@@ -3,6 +3,7 @@ import { SearchAddon, type ISearchOptions } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
+import { isSameCable } from '../../shared/serial-ports'
 import type { SerialSettings, SessionStatus } from '../../shared/types'
 import { Modal } from './dialogs'
 import { fadeClass, useScrollEdges } from './scrollEdges'
@@ -34,6 +35,8 @@ export interface Tab {
   log?: boolean
   /** e.g. "cu.usbserial-A10K · 9600 8N1", shown when connected. */
   detail?: string
+  /** Console cable was pulled: reconnect by itself when it comes back (cleared once connected). */
+  waitingForCable?: boolean
 }
 
 /** Commands from the menu, sent to the focused pane. */
@@ -64,6 +67,8 @@ interface Props {
   /** Pointer down on the header: the pane may be dragged to another place. */
   onDragStart: (e: React.PointerEvent) => void
   register: (sessionId: string, handle: PaneHandle | null) => void
+  /** Console tab: the cable it uses (quick session or saved host), to reconnect when it is plugged back in. */
+  cable?: SerialSettings
 }
 
 const searchDecorations: ISearchOptions['decorations'] = {
@@ -73,12 +78,15 @@ const searchDecorations: ISearchOptions['decorations'] = {
   activeMatchColorOverviewRuler: '#e0af68'
 }
 
+/** Wait after a cable reappears before opening it, so the device finishes enumerating. */
+const REPLUG_DELAY_MS = 500
+
 /** Text split into the lines it would send; one entry = a single line. */
 function pasteLines(text: string): string[] {
   return text.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n')
 }
 
-export default function TerminalView({ tab, visible, focused, split, zoomed, rect, font, onFocus, onClose, onMoveToTab, onSplit, onZoom, onDragStart, register }: Props) {
+export default function TerminalView({ tab, visible, focused, split, zoomed, rect, font, onFocus, onClose, onMoveToTab, onSplit, onZoom, onDragStart, register, cable }: Props) {
   const el = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -88,6 +96,10 @@ export default function TerminalView({ tab, visible, focused, split, zoomed, rec
   const secretRef = useRef(tab.secret)
   secretRef.current = tab.secret
   const prevState = useRef(tab.status.state)
+  const cableRef = useRef(cable)
+  cableRef.current = cable
+  const waitingForCable = useRef(!!tab.waitingForCable)
+  waitingForCable.current = !!tab.waitingForCable
   const alive = useRef(true)
 
   const [findOpen, setFindOpen] = useState(false)
@@ -188,6 +200,18 @@ export default function TerminalView({ tab, visible, focused, split, zoomed, rec
         })
     }
 
+    let replug: ReturnType<typeof setTimeout> | undefined
+    const offPorts = window.shell.onSerialPorts((_ports, added) => {
+      const c = cableRef.current
+      if (!waitingForCable.current || !c || statusRef.current.state !== 'closed' || !added.some((p) => isSameCable(c, p))) return
+      clearTimeout(replug)
+      replug = setTimeout(() => {
+        if (!alive.current || !waitingForCable.current || statusRef.current.state !== 'closed') return
+        term.write(`\x1b[90mConsole cable is back.\x1b[0m\r\n`)
+        connect(secretRef.current)
+      }, REPLUG_DELAY_MS)
+    })
+
     const inputSub = term.onData((data) => {
       if (statusRef.current.state === 'closed') {
         // Reuse a password typed for this tab (not saved) on reconnect.
@@ -222,6 +246,8 @@ export default function TerminalView({ tab, visible, focused, split, zoomed, rec
       ro.disconnect()
       node.removeEventListener('paste', onPaste, true)
       offData()
+      offPorts()
+      clearTimeout(replug)
       ips.dispose()
       inputSub.dispose()
       resizeSub.dispose()
@@ -242,7 +268,10 @@ export default function TerminalView({ tab, visible, focused, split, zoomed, rec
       const reason = s.error ? `: ${s.error}` : ''
       const ended = tab.kind === 'local' ? 'Shell ended' : 'Disconnected'
       const again = tab.kind === 'local' ? 'start a new shell' : 'reconnect'
-      term.write(`\r\n\x1b[33m${ended}${reason}\x1b[0m\r\n\x1b[90mPress Enter to ${again}.\x1b[0m\r\n`)
+      const hint = waitingForCable.current
+        ? 'Reconnects by itself when the cable is plugged back in (or the device finishes rebooting). Press Enter to retry now.'
+        : `Press Enter to ${again}.`
+      term.write(`\r\n\x1b[33m${ended}${reason}\x1b[0m\r\n\x1b[90m${hint}\x1b[0m\r\n`)
       setPending(null)
     }
     if (s.state === 'ready' && tab.kind === 'serial') {

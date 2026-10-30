@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   activeTerm,
+  confirmClose,
   connectTo,
   expectReady,
   fingerprint,
@@ -100,6 +101,7 @@ test.describe('split panes', () => {
 
     // ⌘W closes only the focused pane; the other session stays up and is not reopened.
     await menu(app, 'Close Tab')
+    await confirmClose(win)
     await expect(panes(win)).toHaveCount(1)
     await expect(win.locator('.pane-header')).toHaveCount(0)
     await expect(win.locator('.tab.active .tab-title')).toHaveText(b.name)
@@ -146,6 +148,7 @@ test.describe('split panes', () => {
     await enterPassword(win)
     await expect(panes(win)).toHaveCount(2)
     await win.locator('.tab.active .tab-close').click()
+    await confirmClose(win)
     await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
     await expect.poll(() => srvA.openSessions()).toBe(1)
   })

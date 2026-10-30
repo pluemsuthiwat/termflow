@@ -15,7 +15,7 @@ import {
 import { isWithin, joinPath, nameOf, parentOf, rebase } from '../../shared/groups'
 import { AboutDialog } from './About'
 import Dashboard from './Dashboard'
-import { ConsoleDialog, FontDialog, GroupDialog, HostForm, PasswordDialog, PromptDialog } from './dialogs'
+import { CloseSessionsDialog, CONSOLE_BAUDS, ConsoleDialog, FontDialog, GroupDialog, HostForm, PasswordDialog, PromptDialog, loadLastConsole } from './dialogs'
 import { IconGrid, IconPlug, IconPlus, IconSidebar, IconSplit } from './icons'
 import {
   dividers,
@@ -41,6 +41,7 @@ import Sidebar from './Sidebar'
 import SplitPicker, { type PickTarget, type SideChoice } from './SplitPicker'
 import { clampFontSize, DEFAULT_FONT, type TermFont } from './font'
 import TerminalView, { type PaneHandle, type Tab } from './TerminalView'
+import { isSameCable } from '../../shared/serial-ports'
 
 /** One entry in the tab bar: one or more sessions (panes) in a split layout. */
 interface View {
@@ -156,7 +157,10 @@ export default function App() {
   const [serialPorts, setSerialPorts] = useState<SerialPortInfo[]>([])
   // Cable plugged in after startup: offer to connect.
   const [newPort, setNewPort] = useState<SerialPortInfo | null>(null)
-  const [consoleOpen, setConsoleOpen] = useState(false)
+  // Baud for the notice's Connect: the last rate used, 9600 the first time.
+  const [newPortBaud, setNewPortBaud] = useState(() => loadLastConsole().baudRate ?? DEFAULT_SERIAL.baudRate)
+  // Open console dialog; `path` preselects a port.
+  const [consoleOpen, setConsoleOpen] = useState<{ path?: string } | null>(null)
   // Log quick console sessions (no saved host); set in the Open console dialog.
   const [consoleLog, setConsoleLog] = useState(() => {
     try {
@@ -165,6 +169,14 @@ export default function App() {
       return false
     }
   })
+  const rememberConsoleLog = (log: boolean): void => {
+    setConsoleLog(log)
+    try {
+      localStorage.setItem('console.log', String(log))
+    } catch {
+      // remembering is optional
+    }
+  }
   const [version, setVersion] = useState('')
   const [aboutOpen, setAboutOpen] = useState(false)
   // Latest release check (from the About dialog or the quiet check after launch).
@@ -211,7 +223,11 @@ export default function App() {
     window.shell.listSerialPorts().then(setSerialPorts)
     const offPorts = window.shell.onSerialPorts((ports, added) => {
       setSerialPorts(ports)
-      if (added.length) setNewPort(added[added.length - 1])
+      const fresh = added.filter((p) => !waitingCables.current.some((c) => isSameCable(c, p)))
+      if (fresh.length) {
+        setNewPort(fresh[fresh.length - 1])
+        setNewPortBaud(loadLastConsole().baudRate ?? DEFAULT_SERIAL.baudRate)
+      }
       // Dismiss the notice if that cable was pulled again.
       setNewPort((cur) => (cur && !ports.some((p) => p.path === cur.path) ? null : cur))
     })
@@ -225,7 +241,9 @@ export default function App() {
           if (t.sessionId !== sessionId) return t
           // Keep the first error when "error" is followed by a plain "close".
           if (status.state === 'closed' && t.status.state === 'closed' && !status.error) return t
-          return { ...t, status }
+          // A pulled console cable is waited for until the tab connects again (retries may fail meanwhile).
+          const waitingForCable = status.state === 'ready' ? undefined : t.waitingForCable || (status.state === 'closed' && status.unplugged) || undefined
+          return { ...t, status, waitingForCable }
         })
       )
     })
@@ -341,16 +359,27 @@ export default function App() {
     if (h) connectHost(h, placement)
   }
 
+  /** The cable a console tab uses: its quick-session settings or its saved host's. */
+  const cableOf = (t: Tab): SerialSettings | undefined =>
+    t.kind === 'serial' ? t.serial ?? hosts.find((h) => h.id === t.hostId)?.serial : undefined
+
   // Console ports open in a pane; they can't be opened a second time.
   const busyPorts = useMemo(() => {
     const set = new Set<string>()
     for (const t of tabs) {
-      if (t.kind !== 'serial' || t.status.state === 'closed') continue
-      const path = t.serial?.path ?? hosts.find((h) => h.id === t.hostId)?.serial?.path
+      if (t.status.state === 'closed') continue
+      const path = cableOf(t)?.path
       if (path) set.add(path)
     }
     return set
   }, [tabs, hosts])
+
+  // A cable plugged back in that a pulled console tab is waiting for: that tab reconnects, no notice.
+  const waitingCables = useRef<SerialSettings[]>([])
+  waitingCables.current = tabs.flatMap((t) => {
+    const c = t.waitingForCable && t.status.state === 'closed' ? cableOf(t) : undefined
+    return c ? [c] : []
+  })
 
   // Split picker: hangs from the tab bar button (focused pane) or a pane header (that pane).
   const [picker, setPicker] = useState<{ anchor: DOMRect; target?: { viewId: string; sessionId: string } } | null>(null)
@@ -427,10 +456,24 @@ export default function App() {
       setActiveId(remaining[remaining.length - 1]?.id ?? next[0]?.id ?? null)
     }
   }
-  const closeTab = (sessionId: string): void => closeSessions([sessionId])
+  // Closing panes whose session is still connected asks first.
+  const [closeAsk, setCloseAsk] = useState<string[] | null>(null)
+  const liveOf = (ids: string[]): Tab[] => tabs.filter((t) => ids.includes(t.sessionId) && t.status.state === 'ready')
+  const requestClose = (ids: string[]): void => {
+    if (liveOf(ids).length) setCloseAsk(ids)
+    else closeSessions(ids)
+  }
+  // Every session in question ended while asking: nothing left to confirm.
+  useEffect(() => {
+    if (closeAsk && !liveOf(closeAsk).length) {
+      closeSessions(closeAsk)
+      setCloseAsk(null)
+    }
+  }, [closeAsk, tabs])
+  const closeTab = (sessionId: string): void => requestClose([sessionId])
   const closeView = (viewId: string): void => {
     const v = views.find((x) => x.id === viewId)
-    if (v) closeSessions(paneIds(v.layout))
+    if (v) requestClose(paneIds(v.layout))
   }
 
   /** Take a pane out of its split into a tab of its own, right after the current one. */
@@ -808,7 +851,7 @@ export default function App() {
               onQuickConnect={quickConnect}
               serialPorts={serialPorts}
               onOpenPort={openPort}
-              onOpenConsole={() => setConsoleOpen(true)}
+              onOpenConsole={() => setConsoleOpen({})}
               version={version}
               updateVersion={update?.state === 'available' ? update.latest : undefined}
               onAbout={() => setAboutOpen(true)}
@@ -836,6 +879,7 @@ export default function App() {
                 onClose={() => closeTab(t.sessionId)}
                 onMoveToTab={() => moveToTab(t.sessionId)}
                 register={registerPane}
+                cable={cableOf(t)}
               />
             )
           })}
@@ -905,24 +949,45 @@ export default function App() {
               {newPort.name}
             </span>
           </div>
+          <select
+            className="toast-baud"
+            aria-label="Baud rate"
+            title="Baud rate (8N1)"
+            value={newPortBaud}
+            onChange={(e) => {
+              if (e.target.value === 'other') {
+                setConsoleOpen({ path: newPort.path })
+                setNewPort(null)
+              } else setNewPortBaud(Number(e.target.value))
+            }}
+          >
+            {[...new Set([...CONSOLE_BAUDS, newPortBaud])]
+              .sort((a, b) => a - b)
+              .map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            <option value="other">Other…</option>
+          </select>
           <button
             className="btn small primary"
             onClick={() => {
-              openPort(newPort)
+              try {
+                localStorage.setItem('console.last', JSON.stringify({ path: newPort.path, baudRate: newPortBaud }))
+              } catch {
+                // remembering the choice is optional
+              }
+              openPort(newPort, newPortBaud, consoleLog)
               setNewPort(null)
             }}
           >
             Connect
           </button>
-          <button
-            className="btn small"
-            onClick={() => {
-              savePortAsHost(newPort)
-              setNewPort(null)
-            }}
-          >
-            Save as host
-          </button>
+          <label className="toast-check" title="Write a plain-text session log (same setting as in Open console)">
+            <input type="checkbox" checked={consoleLog} onChange={(e) => rememberConsoleLog(e.target.checked)} />
+            Log
+          </label>
           <button className="icon" aria-label="Dismiss" onClick={() => setNewPort(null)}>
             ✕
           </button>
@@ -986,19 +1051,25 @@ export default function App() {
           onClose={() => setAboutOpen(false)}
         />
       )}
+      {closeAsk && (
+        <CloseSessionsDialog
+          sessions={liveOf(closeAsk).map((t) => ({ title: t.title, kind: t.kind === 'serial' ? 'Console' : t.kind === 'local' ? 'Terminal' : 'SSH' }))}
+          onCancel={() => setCloseAsk(null)}
+          onClose={() => {
+            closeSessions(closeAsk)
+            setCloseAsk(null)
+          }}
+        />
+      )}
       {consoleOpen && (
         <ConsoleDialog
           ports={serialPorts}
+          initialPath={consoleOpen.path}
           log={consoleLog}
-          onCancel={() => setConsoleOpen(false)}
+          onCancel={() => setConsoleOpen(null)}
           onConnect={(port, baudRate, log) => {
-            setConsoleOpen(false)
-            setConsoleLog(log)
-            try {
-              localStorage.setItem('console.log', String(log))
-            } catch {
-              // remembering is optional
-            }
+            setConsoleOpen(null)
+            rememberConsoleLog(log)
             openPort(port, baudRate, log)
           }}
         />

@@ -1,6 +1,6 @@
 import { SerialPort, SerialPortMock } from 'serialport'
 import { portName } from '../shared/hosts'
-import { normalizePorts } from '../shared/serial-ports'
+import { isSameCable, normalizePorts } from '../shared/serial-ports'
 import type { ConnectRequest, Host, SerialPortInfo, SerialSettings } from '../shared/types'
 import { data, openLog, send, status, type SessionLog } from './session-io'
 import * as store from './store'
@@ -12,6 +12,8 @@ const Port = (MOCK ? SerialPortMock : SerialPort) as typeof SerialPort
 interface Session {
   port: SerialPort
   path: string
+  /** Saved host name or the port, for the quit confirmation. */
+  label: string
   log?: SessionLog
   closing?: boolean
 }
@@ -68,7 +70,7 @@ function readableError(err: Error, path: string): string {
 async function resolvePath(s: SerialSettings, host?: Host): Promise<string> {
   const ports = await listPorts().catch(() => known)
   if (ports.some((p) => p.path === s.path) || !s.serialNumber) return s.path
-  const match = ports.find((p) => p.serialNumber === s.serialNumber && (!s.vendorId || p.vendorId === s.vendorId))
+  const match = ports.find((p) => isSameCable(s, p))
   if (!match) return s.path
   if (host?.serial) store.saveHost({ ...host, serial: { ...host.serial, path: match.path } })
   return match.path
@@ -94,7 +96,7 @@ export async function connect(req: ConnectRequest): Promise<void> {
     xoff: settings.flowControl === 'xon',
     autoOpen: false
   })
-  const session: Session = { port, path }
+  const session: Session = { port, path, label: host?.name || portName(path) }
 
   await new Promise<void>((resolve, reject) =>
     port.open((err) => (err ? reject(new Error(readableError(err, path))) : resolve()))
@@ -116,8 +118,8 @@ export async function connect(req: ConnectRequest): Promise<void> {
   port.on('close', (err?: Error & { disconnected?: boolean }) => {
     session.log?.end()
     sessions.delete(req.sessionId)
-    const error = err?.disconnected ? `Device disconnected (${portName(path)})` : undefined
-    status(req.sessionId, { state: 'closed', error })
+    if (err?.disconnected) status(req.sessionId, { state: 'closed', error: `Device disconnected (${portName(path)})`, unplugged: true })
+    else status(req.sessionId, { state: 'closed' })
   })
 
   status(req.sessionId, { state: 'ready', logFile: session.log?.file })
@@ -144,6 +146,11 @@ export async function sendBreak(sessionId: string): Promise<void> {
   if (s.port.isOpen) await s.port.set({ brk: false })
 }
 
+/** Open console sessions, e.g. "Console: core-console". */
+export function active(): string[] {
+  return [...sessions.values()].map((s) => `Console: ${s.label}`)
+}
+
 export function closeAll(): void {
   stopWatching()
   for (const s of sessions.values()) if (s.port.isOpen) s.port.close()
@@ -164,7 +171,10 @@ interface MockHooks {
 const mockHooks: MockHooks | undefined = MOCK
   ? (() => {
       const Binding = SerialPortMock.binding
-      const created = new Map<string, object>()
+      const created = new Map<string, { manufacturer?: string; serialNumber?: string; vendorId?: string; productId?: string }>()
+      // The mock numbers ports 1, 2, …; use a serial number the test gave instead.
+      const list = SerialPortMock.list
+      SerialPortMock.list = async () => (await list()).map((p: { path: string; serialNumber?: string }) => ({ ...p, serialNumber: created.get(p.path)?.serialNumber ?? p.serialNumber }))
       const recreate = () => {
         Binding.reset()
         for (const [p, info] of created) Binding.createPort(p, { echo: true, record: true, ...info })

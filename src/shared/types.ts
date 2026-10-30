@@ -117,7 +117,8 @@ export type PromptAnswer = { accept: boolean } | { answers: string[] | null }
 export type SessionStatus =
   | { state: 'connecting' }
   | { state: 'ready'; logFile?: string }
-  | { state: 'closed'; error?: string }
+  /** `unplugged`: a console cable was pulled (or the device behind it rebooted). */
+  | { state: 'closed'; error?: string; unplugged?: boolean }
 
 /** Result of looking up the latest GitHub release. */
 export type UpdateCheck =

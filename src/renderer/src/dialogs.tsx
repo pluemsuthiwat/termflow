@@ -473,9 +473,9 @@ export function ConfirmDialog({
   )
 }
 
-const CONSOLE_BAUDS = [9600, 19200, 38400, 57600, 115200]
+export const CONSOLE_BAUDS = [9600, 19200, 38400, 57600, 115200]
 
-function loadLastConsole(): { path?: string; baudRate?: number } {
+export function loadLastConsole(): { path?: string; baudRate?: number } {
   try {
     return JSON.parse(localStorage.getItem('console.last') ?? '{}')
   } catch {
@@ -486,11 +486,14 @@ function loadLastConsole(): { path?: string; baudRate?: number } {
 /** Pick a port and baud rate before opening a console session. */
 export function ConsoleDialog({
   ports,
+  initialPath,
   log: logDefault,
   onConnect,
   onCancel
 }: {
   ports: SerialPortInfo[]
+  /** Port to preselect (e.g. the cable that was just plugged in); otherwise the last one used. */
+  initialPath?: string
   /** Last choice; it also applies to quick connects from the sidebar and the cable notice. */
   log: boolean
   onConnect: (port: SerialPortInfo, baudRate: number, log: boolean) => void
@@ -498,7 +501,8 @@ export function ConsoleDialog({
 }) {
   const [log, setLog] = useState(logDefault)
   const last = loadLastConsole()
-  const [path, setPath] = useState(last.path && ports.some((p) => p.path === last.path) ? last.path : ports[0]?.path ?? '')
+  const want = initialPath ?? last.path
+  const [path, setPath] = useState(want && ports.some((p) => p.path === want) ? want : ports[0]?.path ?? '')
   const [baud, setBaud] = useState(String(last.baudRate ?? 9600))
   const [error, setError] = useState('')
 
@@ -743,6 +747,44 @@ export function PromptDialog({ req, onAnswer }: { req: PromptRequest; onAnswer: 
           </button>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+/** Closing a tab or pane whose session is still connected: confirm first. */
+export function CloseSessionsDialog({
+  sessions,
+  onClose,
+  onCancel
+}: {
+  sessions: { title: string; kind: 'SSH' | 'Console' | 'Terminal' }[]
+  onClose: () => void
+  onCancel: () => void
+}) {
+  const one = sessions.length === 1
+  return (
+    <Modal title={one ? `Close ${sessions[0].title}?` : `Close ${sessions.length} sessions?`} onClose={onCancel}>
+      <div className="form">
+        <ul className="close-list">
+          {sessions.map((s, i) => (
+            <li key={i}>
+              <span className="close-kind">{s.kind}</span> {s.title}
+            </li>
+          ))}
+        </ul>
+        <p className="muted">
+          {one ? 'This session is' : 'These sessions are'} still connected. Closing {sessions.every((s) => s.kind === 'Terminal') ? 'ends' : 'disconnects'}{' '}
+          {one ? 'it' : 'them'}.
+        </p>
+        <div className="actions">
+          <button type="button" className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="btn danger" onClick={onClose} autoFocus>
+            Close
+          </button>
+        </div>
+      </div>
     </Modal>
   )
 }

@@ -105,6 +105,39 @@ function on<A extends unknown[]>(channel: string, fn: (...args: A) => void): voi
   })
 }
 
+/**
+ * Closing the window (⌘Q or the close button) ends every session: ask first when any is open.
+ * Tests turn this off with TERMFLOW_NO_QUIT_CONFIRM so closing the app never waits on a dialog.
+ */
+function confirmCloseWithSessions(win: BrowserWindow): void {
+  let confirmed = false
+  let asking = false
+  win.on('close', (e) => {
+    if (confirmed || process.env.TERMFLOW_NO_QUIT_CONFIRM === '1') return
+    const open = [...ssh.active(), ...serial.active(), ...local.active()]
+    if (!open.length) return
+    e.preventDefault()
+    if (asking) return
+    asking = true
+    const n = open.length
+    dialog
+      .showMessageBox(win, {
+        type: 'warning',
+        message: n === 1 ? 'Quit Termflow? 1 session is still open.' : `Quit Termflow? ${n} sessions are still open.`,
+        detail: `${open.join('\n')}\n\nQuitting disconnects ${n === 1 ? 'it' : 'all of them'}.`,
+        buttons: ['Quit', 'Cancel'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        asking = false
+        if (response !== 0 || win.isDestroyed()) return
+        confirmed = true
+        win.close()
+      })
+  })
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -137,6 +170,7 @@ function createWindow(): void {
     )
   }
 
+  confirmCloseWithSessions(win)
   win.loadURL(APP_URL)
 }
 

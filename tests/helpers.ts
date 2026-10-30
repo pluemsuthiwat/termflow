@@ -286,6 +286,8 @@ export async function launchApp(dataDir: string, env: Record<string, string | un
       TERMFLOW_DATA_DIR: dataDir,
       TERMFLOW_SERIAL_MOCK: '1',
       TERMFLOW_NO_UPDATE_CHECK: '1',
+      // Closing with sessions open asks first; only the quit tests turn that on.
+      TERMFLOW_NO_QUIT_CONFIRM: '1',
       ...env
     } as Record<string, string>
   })
@@ -307,6 +309,12 @@ export async function connectTo(win: Page, name: string, password?: string, save
     if (save) await win.locator('.modal input[type=checkbox]').check()
     await win.locator('.modal').getByRole('button', { name: 'Connect', exact: true }).click()
   }
+}
+
+/** Closing a connected session asks first: confirm. */
+export async function confirmClose(win: Page): Promise<void> {
+  await win.locator('.modal').getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(win.locator('.modal')).toHaveCount(0)
 }
 
 export async function trustHostKey(win: Page): Promise<void> {
