@@ -2,8 +2,7 @@ import { app, net, shell } from 'electron'
 import type { UpdateCheck } from '../shared/types'
 
 // Releases are published on GitHub (gh release create vX.Y.Z ...). The app only checks
-// and points the user at the release page: installing over itself needs a Developer ID
-// signature, which this ad-hoc signed build doesn't have.
+// and points the user at the release page; it doesn't download or install updates itself.
 export const REPO_URL = 'https://github.com/pluemsuthiwat/termflow'
 const RELEASES_URL = `${REPO_URL}/releases/`
 const LATEST_API = 'https://api.github.com/repos/pluemsuthiwat/termflow/releases/latest'

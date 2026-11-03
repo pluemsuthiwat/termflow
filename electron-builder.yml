@@ -28,11 +28,13 @@ mac:
   # Lets macOS ask for Local Network access; without it LAN hosts fail with EHOSTUNREACH.
   extendInfo:
     NSLocalNetworkUsageDescription: Termflow connects to SSH hosts on your local network.
-  # Ad-hoc signature: runs on this Mac. Sharing it needs a Developer ID
-  # certificate, hardenedRuntime: true and notarization.
-  identity: '-'
-  hardenedRuntime: false
-  notarize: false
+  # Developer ID signature + notarization, so downloads pass Gatekeeper. Notarizing uses the
+  # notarytool keychain profile named in APPLE_KEYCHAIN_PROFILE (see the dist script);
+  # without it the build is signed but not notarized. Entitlements: electron-builder's
+  # default Electron set (JIT, unsigned executable memory, library validation off).
+  identity: Suthiwat Srisen (FHJV635JGF)
+  hardenedRuntime: true
+  notarize: true
 # Gives the executable its own Mach-O UUID so the Local Network grant sticks to Termflow.
 afterPack: build/unique-uuid.js
 dmg:

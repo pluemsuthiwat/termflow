@@ -1,7 +1,7 @@
 {
   "name": "termflow",
   "productName": "Termflow",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "private": true,
   "license": "MIT",
   "main": "out/main/index.js",
@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/*/spawn-helper 2>/dev/null || true",
     "test": "electron-vite build && playwright test",
-    "dist": "electron-vite build && electron-builder --mac",
+    "dist": "electron-vite build && APPLE_KEYCHAIN_PROFILE=termflow-notary electron-builder --mac",
     "dist:dir": "electron-vite build && electron-builder --mac --dir",
     "dist:test": "electron-vite build && electron-builder --mac --dir -c.directories.output=dist-test -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.termflowTestBuild=true",
     "test:dist": "npm run dist:test && TERMFLOW_EXECUTABLE=dist-test/mac-arm64/Termflow.app/Contents/MacOS/Termflow playwright test"

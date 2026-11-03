@@ -2,6 +2,7 @@ node_modules
 out
 dist
 dist-test
+dist-signed
 test-results/
 playwright-report/
 

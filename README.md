@@ -19,11 +19,11 @@ npm run dist     # dist/Termflow-<version>-arm64.dmg (+ .zip), Apple Silicon
 Open the `.dmg` and drag **Termflow** to Applications. Hosts, groups and saved passwords are the
 same as in development (`~/Library/Application Support/Termflow/`).
 
-- The app is signed ad-hoc (no Apple Developer ID), which is fine on the Mac that built it. On another Mac,
-  Gatekeeper blocks the first launch: right-click the app → **Open**, or allow it under System Settings →
-  Privacy & Security. Sharing it widely needs a Developer ID certificate, hardened runtime and notarization.
+- Signed with a Developer ID (hardened runtime) and notarized by Apple, so it opens on any Mac without a
+  Gatekeeper warning. Building needs the "Developer ID Application" certificate in the Keychain and a
+  notarytool profile: `xcrun notarytool store-credentials termflow-notary --apple-id … --team-id FHJV635JGF`.
 - The first time it saves or reads a password, macOS asks to let Termflow use "Termflow Safe Storage" in the
-  Keychain: choose **Always Allow**. A rebuilt ad-hoc app may ask again.
+  Keychain: choose **Always Allow**.
 - Hardened package: Electron fuses disable running as Node, `NODE_OPTIONS`, `--inspect` and loading code
   outside the integrity-checked `app.asar`; the app also refuses `--remote-debugging-port`.
 - `npm run test:dist` builds a test package (same packaging, debugging allowed) and runs the whole suite on it.
@@ -94,7 +94,7 @@ Set `TERMFLOW_DATA_DIR` to use a different data directory.
 
 ## Next
 
-SFTP, port forwarding / jump host, snippets, import from `~/.ssh/config`, Developer ID signing + notarization, Intel / universal build.
+SFTP, port forwarding / jump host, snippets, import from `~/.ssh/config`, Intel / universal build.
 
 ## License
 
