@@ -181,6 +181,10 @@ export interface ShellApi {
   dataDir(): Promise<string>
   /** App version from package.json, e.g. "1.0.0". */
   version(): Promise<string>
+  /** Local terminals among these that run a program (not just sitting at the prompt). */
+  busyTerminals(ids: string[]): Promise<string[]>
+  /** Whether a local terminal opens by itself when the window loads (tests turn it off). */
+  openTerminalAtLaunch(): Promise<boolean>
   pickKeyFile(): Promise<string | null>
   appInfo(): Promise<AppInfo>
   checkForUpdate(): Promise<UpdateCheck>

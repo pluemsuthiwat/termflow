@@ -418,6 +418,45 @@ test('multi-line paste asks first; one line pastes as usual', async () => {
   await expect.poll(() => inputs(srvA).at(-1)).toBe('show color')
 })
 
+test('the paste question works from the keyboard: ← / → pick a button, Enter presses it', async () => {
+  const { a, srvA, win } = await setup()
+  await connectTo(win, a.name, PW)
+  await expectReady(win)
+  const modal = win.locator('.modal')
+  const focused = modal.locator('button:focus')
+
+  await paste(win, 'show version\nshow color\n')
+  await expect(focused).toHaveText('Cancel')
+  await win.keyboard.press('ArrowRight')
+  await expect(focused).toHaveText('Paste line by line')
+  await win.keyboard.press('ArrowRight')
+  await expect(focused).toHaveText('Paste')
+  // Stops at the last button rather than wrapping round to Cancel.
+  await win.keyboard.press('ArrowRight')
+  await expect(focused).toHaveText('Paste')
+  await win.keyboard.press('Enter')
+  await expect(modal).toHaveCount(0)
+  await expect.poll(() => inputs(srvA)).toEqual(['show version', 'show color'])
+
+  await paste(win, 'show more\nshow color\n')
+  await win.keyboard.press('ArrowRight')
+  await win.keyboard.press('ArrowRight')
+  await win.keyboard.press('ArrowLeft')
+  await expect(focused).toHaveText('Paste line by line')
+  await win.keyboard.press('Enter')
+  await expect.poll(() => inputs(srvA)).toEqual(['show version', 'show color', 'show more', 'show color'])
+
+  // From the preview, → jumps back to the buttons.
+  await paste(win, 'show a\nshow b\n')
+  await win.locator('.paste-preview').focus()
+  await win.keyboard.press('ArrowRight')
+  await expect(focused).toHaveText('Cancel')
+  await win.keyboard.press('Enter')
+  await expect(modal).toHaveCount(0)
+  await win.waitForTimeout(200)
+  expect(inputs(srvA)).toHaveLength(4)
+})
+
 test('a long paste can be scrolled through in the preview before sending', async () => {
   const { a, srvA, win } = await setup()
   await connectTo(win, a.name, PW)

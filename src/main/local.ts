@@ -91,9 +91,30 @@ export function close(sessionId: string): void {
   sessions.get(sessionId)?.kill()
 }
 
-/** Open shells, e.g. "Terminal (vim)": what runs in the foreground right now. */
+// A shell waiting at its prompt has nothing to lose; like Terminal.app, quitting only asks
+// (or closing its tab) when something else runs in the foreground (/bin/sh shows up as bash on macOS).
+const IDLE = new Set(['login', 'sh', 'bash', 'zsh', 'dash', 'ksh', 'tcsh', 'csh', 'fish'])
+
+/** The program in the shell's foreground, or undefined while it sits at its prompt. */
+function busyWith(p: pty.IPty): string | undefined {
+  const name = path.basename(p.process || shellPath()).replace(/^-/, '')
+  return IDLE.has(name) || name === path.basename(shellPath()) ? undefined : name
+}
+
+/** Shells busy with a program, e.g. "Terminal (vim)". */
 export function active(): string[] {
-  return [...sessions.values()].map((p) => `Terminal (${path.basename(p.process || shellPath())})`)
+  return [...sessions.values()].flatMap((p) => {
+    const name = busyWith(p)
+    return name ? [`Terminal (${name})`] : []
+  })
+}
+
+/** Which of these shells are busy with a program, so closing them asks first. */
+export function busy(ids: string[]): string[] {
+  return ids.filter((id) => {
+    const p = sessions.get(id)
+    return p && busyWith(p)
+  })
 }
 
 export function closeAll(): void {

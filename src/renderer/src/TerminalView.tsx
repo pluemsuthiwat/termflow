@@ -2,7 +2,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { isSameCable } from '../../shared/serial-ports'
 import type { SerialSettings, SessionStatus } from '../../shared/types'
 import { Modal } from './dialogs'
@@ -443,9 +443,19 @@ const PREVIEW_MAX = 5000
 function PasteConfirm({ lines, onCancel, onPaste }: { lines: string[]; onCancel: () => void; onPaste: (lineByLine: boolean) => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges(ref, 'y')
+  const actions = useRef<HTMLDivElement>(null)
   const shown = lines.slice(0, PREVIEW_MAX)
+  // ← / → step through the buttons, so ⌘V, arrows and Enter pastes without the mouse.
+  const stepButtons = (e: KeyboardEvent): void => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    const buttons = [...(actions.current?.querySelectorAll('button') ?? [])]
+    const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
+    const next = at < 0 ? 0 : Math.max(0, Math.min(buttons.length - 1, at + (e.key === 'ArrowRight' ? 1 : -1)))
+    buttons[next]?.focus()
+    e.preventDefault()
+  }
   return (
-    <div className="form">
+    <div className="form" onKeyDown={stepButtons}>
       <p className="muted">Each line runs as a command on the device. Scroll to check every line before pasting.</p>
       <div
         ref={ref}
@@ -461,7 +471,7 @@ function PasteConfirm({ lines, onCancel, onPaste }: { lines: string[]; onCancel:
         ))}
         {lines.length > shown.length && <div className="paste-more">… {lines.length - shown.length} more lines not shown</div>}
       </div>
-      <div className="actions">
+      <div className="actions paste-actions" ref={actions}>
         <button className="btn" onClick={onCancel} autoFocus>
           Cancel
         </button>

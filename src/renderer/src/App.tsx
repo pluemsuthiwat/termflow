@@ -219,6 +219,8 @@ export default function App() {
     reload()
     window.shell.dataDir().then(setDataDir)
     window.shell.version().then(setVersion)
+    // Start in a shell on this Mac; SSH hosts are a ⌘0 away on the dashboard.
+    window.shell.openTerminalAtLaunch().then((open) => open && openLocal())
     const offUpdate = window.shell.onUpdateAvailable(setUpdate)
     window.shell.listSerialPorts().then(setSerialPorts)
     const offPorts = window.shell.onSerialPorts((ports, added) => {
@@ -456,21 +458,26 @@ export default function App() {
       setActiveId(remaining[remaining.length - 1]?.id ?? next[0]?.id ?? null)
     }
   }
-  // Closing panes whose session is still connected asks first.
-  const [closeAsk, setCloseAsk] = useState<string[] | null>(null)
+  // Closing panes whose session is still connected asks first; a local shell only while it runs a program.
+  // ids: everything to close; ask: the sessions the question is about.
+  const [closeAsk, setCloseAsk] = useState<{ ids: string[]; ask: string[] } | null>(null)
   const liveOf = (ids: string[]): Tab[] => tabs.filter((t) => ids.includes(t.sessionId) && t.status.state === 'ready')
-  const requestClose = (ids: string[]): void => {
-    if (liveOf(ids).length) setCloseAsk(ids)
+  const requestClose = async (ids: string[]): Promise<void> => {
+    const live = liveOf(ids)
+    const locals = live.filter((t) => t.kind === 'local').map((t) => t.sessionId)
+    const busy = locals.length ? await window.shell.busyTerminals(locals) : []
+    const ask = live.filter((t) => t.kind !== 'local' || busy.includes(t.sessionId)).map((t) => t.sessionId)
+    if (ask.length) setCloseAsk({ ids, ask })
     else closeSessions(ids)
   }
   // Every session in question ended while asking: nothing left to confirm.
   useEffect(() => {
-    if (closeAsk && !liveOf(closeAsk).length) {
-      closeSessions(closeAsk)
+    if (closeAsk && !liveOf(closeAsk.ask).length) {
+      closeSessions(closeAsk.ids)
       setCloseAsk(null)
     }
   }, [closeAsk, tabs])
-  const closeTab = (sessionId: string): void => requestClose([sessionId])
+  const closeTab = (sessionId: string): void => void requestClose([sessionId])
   const closeView = (viewId: string): void => {
     const v = views.find((x) => x.id === viewId)
     if (v) requestClose(paneIds(v.layout))
@@ -1053,10 +1060,10 @@ export default function App() {
       )}
       {closeAsk && (
         <CloseSessionsDialog
-          sessions={liveOf(closeAsk).map((t) => ({ title: t.title, kind: t.kind === 'serial' ? 'Console' : t.kind === 'local' ? 'Terminal' : 'SSH' }))}
+          sessions={liveOf(closeAsk.ask).map((t) => ({ title: t.title, kind: t.kind === 'serial' ? 'Console' : t.kind === 'local' ? 'Terminal' : 'SSH' }))}
           onCancel={() => setCloseAsk(null)}
           onClose={() => {
-            closeSessions(closeAsk)
+            closeSessions(closeAsk.ids)
             setCloseAsk(null)
           }}
         />

@@ -1,5 +1,6 @@
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import {
+  activeTerm,
   connectTo,
   expectReady,
   fingerprint,
@@ -10,6 +11,7 @@ import {
   newDataDir,
   seed,
   startServer,
+  typeLine,
   type FakeServer,
   type Launched
 } from './helpers'
@@ -70,6 +72,7 @@ test.describe('quitting with sessions open', () => {
     await expectReady(win)
     await win.getByRole('button', { name: 'New terminal' }).click()
     await expectReady(win)
+    await typeLine(win, 'sleep 600')
 
     await answer(app, 1)
     await app.evaluate(({ app }) => app.quit())
@@ -78,7 +81,7 @@ test.describe('quitting with sessions open', () => {
     expect(q.message).toBe('Quit Termflow? 3 sessions are still open.')
     expect(q.detail).toContain('SSH: core-sw-01')
     expect(q.detail).toContain('Console: cu.usbserial-A10K')
-    expect(q.detail).toMatch(/Terminal \((sh|bash)\)/) // /bin/sh is bash on macOS
+    expect(q.detail).toContain('Terminal (sleep)')
     expect(q.buttons).toEqual(['Quit', 'Cancel'])
     // Still running, sessions intact.
     expect(await windows(app)).toBe(1)
@@ -88,6 +91,26 @@ test.describe('quitting with sessions open', () => {
     await closeWindow(app)
     await expect.poll(async () => (await asked(app)).length).toBe(2)
     expect(await windows(app)).toBe(1)
+  })
+
+  test('a terminal sitting at its prompt does not ask; one running a program does', async () => {
+    const { app, win } = await start()
+    await win.getByRole('button', { name: 'New terminal' }).click()
+    await expectReady(win)
+    await answer(app, 1)
+    await typeLine(win, 'sleep 600')
+    await app.evaluate(({ app }) => app.quit())
+    await expect.poll(async () => (await asked(app)).length).toBe(1)
+    expect((await asked(app))[0].message).toBe('Quit Termflow? 1 session is still open.')
+
+    // Back at the prompt: quits straight away (Cancel is still the answer, so a question would keep it open).
+    await win.keyboard.press('Control+C')
+    await typeLine(win, 'echo idle-$((1+1))')
+    await expect(activeTerm(win)).toContainText('idle-2')
+    const closed = app.waitForEvent('close')
+    await app.evaluate(({ app }) => app.quit())
+    await closed
+    ui = undefined
   })
 
   test('Quit closes the app; a session that already ended is not counted', async () => {

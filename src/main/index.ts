@@ -183,6 +183,8 @@ handle('groups:rename', (path: string, newName: string) => store.renameGroup(pat
 handle('groups:delete', (name: string) => store.deleteGroup(name))
 handle('app:dataDir', () => store.dataDir())
 handle('app:version', () => app.getVersion())
+handle('local:busy', (ids: string[]) => local.busy(ids))
+handle('app:openTerminalAtLaunch', () => process.env.TERMFLOW_NO_LAUNCH_TERMINAL !== '1')
 handle('app:info', () => ({
   version: app.getVersion(),
   electron: process.versions.electron,

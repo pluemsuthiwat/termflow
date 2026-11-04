@@ -14,6 +14,19 @@ test.afterEach(async () => {
 })
 
 test.describe('local terminal', () => {
+  test('a terminal opens by itself at launch; the dashboard is still one click away', async () => {
+    ui = await launchApp(newDataDir(), { ...SHELL, TERMFLOW_NO_LAUNCH_TERMINAL: undefined })
+    const { win } = ui
+    await expectReady(win)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
+    await expect(win.locator('.tab.active .tab-title')).toHaveText('Terminal')
+    await typeLine(win, 'echo launched-$((1+1))')
+    await expect(activeTerm(win)).toContainText('launched-2')
+
+    await win.getByRole('button', { name: /Dashboard/ }).click()
+    await expect(win.locator('.dashboard')).toBeVisible()
+  })
+
   test('+ opens a shell in the home folder with a sized, colour terminal', async () => {
     ui = await launchApp(newDataDir(), SHELL)
     const { win } = ui
@@ -111,12 +124,13 @@ test.describe('local zsh network tools', () => {
     await expect(activeTerm(win)).toContainText('code=130 icanon')
   })
 
-  test('closing a running shell asks first: tab ✕, pane ✕ and ⌘W; Cancel keeps it', async () => {
+  test('closing a shell running a program asks first: tab ✕, pane ✕ and ⌘W; Cancel keeps it', async () => {
     ui = await launchApp(newDataDir(), SHELL)
     const { win, app } = ui
     const modal = win.locator('.modal')
     await win.getByRole('button', { name: 'New terminal' }).click()
     await expectReady(win)
+    await typeLine(win, 'sleep 600')
 
     await win.locator('.tab.active .tab-close').click()
     await expect(modal.locator('h2')).toHaveText('Close Terminal?')
@@ -134,6 +148,7 @@ test.describe('local zsh network tools', () => {
     // Two panes in one tab: the tab's ✕ lists both.
     await menu(app, 'Split Right')
     await expect(win.locator('.pane.focused .pane-header .dot.ready')).toBeVisible()
+    await typeLine(win, 'sleep 600')
     await win.locator('.tab.active .tab-close').click()
     await expect(modal.locator('h2')).toHaveText('Close 2 sessions?')
     await expect(modal.locator('.close-list li')).toHaveCount(2)
@@ -145,6 +160,42 @@ test.describe('local zsh network tools', () => {
     await confirmClose(win)
     await expect(win.locator('.pane-header')).toHaveCount(0)
     await expect(win.locator('.tab:not(.home)')).toHaveCount(1)
+  })
+
+  test('a shell sitting at its prompt closes without asking; a busy one beside it is the only one asked about', async () => {
+    ui = await launchApp(newDataDir(), SHELL)
+    const { win, app } = ui
+    const modal = win.locator('.modal')
+    await win.getByRole('button', { name: 'New terminal' }).click()
+    await expectReady(win)
+    await menu(app, 'Close Tab')
+    await expect(modal).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
+
+    // Idle + busy in one tab: the question names the busy one only.
+    await win.getByRole('button', { name: 'New terminal' }).click()
+    await expectReady(win)
+    await menu(app, 'Split Right')
+    await expect(win.locator('.pane.focused .pane-header .dot.ready')).toBeVisible()
+    await typeLine(win, 'sleep 600')
+    await win.locator('.tab.active .tab-close').click()
+    await expect(modal.locator('h2')).toHaveText('Close Terminal (2)?')
+    await confirmClose(win)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
+
+    // Back at the prompt after a program ends: no question again.
+    await win.getByRole('button', { name: 'New terminal' }).click()
+    await expectReady(win)
+    await typeLine(win, 'sleep 600')
+    // Let sleep start, so Ctrl+C stops it rather than the line being typed.
+    await win.waitForTimeout(500)
+    await win.keyboard.press('Control+C')
+    await win.waitForTimeout(300)
+    await typeLine(win, 'echo back-$((1+1))')
+    await expect(activeTerm(win)).toContainText('back-2')
+    await win.locator('.tab.active .tab-close').click()
+    await expect(modal).toHaveCount(0)
+    await expect(win.locator('.tab:not(.home)')).toHaveCount(0)
   })
 
   test('a shell that has ended closes without asking', async () => {

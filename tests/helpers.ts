@@ -288,6 +288,8 @@ export async function launchApp(dataDir: string, env: Record<string, string | un
       TERMFLOW_NO_UPDATE_CHECK: '1',
       // Closing with sessions open asks first; only the quit tests turn that on.
       TERMFLOW_NO_QUIT_CONFIRM: '1',
+      // Most tests start on the dashboard; the launch test turns the first terminal back on.
+      TERMFLOW_NO_LAUNCH_TERMINAL: '1',
       ...env
     } as Record<string, string>
   })
