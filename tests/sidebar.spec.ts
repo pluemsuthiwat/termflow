@@ -110,12 +110,11 @@ test('header shows the host count; status dot turns green while connected', asyn
   await expect(win.locator('.host-list .status-dot.live')).toHaveCount(0)
   await win.locator('.host-list .host', { hasText: 'sw-console' }).click()
   await expect(win.locator('.tab.active .dot.ready')).toBeVisible()
-  // Every host has a faint frame; the open one gets the accent colour.
+  // No frame around hosts; the open one is marked by its background.
   const border = (name: string) =>
-    win.locator('.host-list .host', { hasText: name }).evaluate((el) => getComputedStyle(el).borderTopColor)
-  await expect.poll(() => border('sw-console')).toBe('rgb(122, 162, 247)')
-  expect(await border('idle')).not.toBe('rgb(122, 162, 247)')
-  expect(await border('idle')).not.toMatch(/^rgba\(0, 0, 0, 0\)$/)
+    win.locator('.host-list .host', { hasText: name }).evaluate((el) => getComputedStyle(el).borderTopWidth)
+  expect(await border('sw-console')).toBe('0px')
+  expect(await border('idle')).toBe('0px')
   await expect(win.locator('.host-list .host', { hasText: 'sw-console' }).locator('.status-dot')).toHaveClass(/live/)
   await expect(win.locator('.host-list .host', { hasText: 'idle' }).locator('.status-dot')).not.toHaveClass(/live/)
   await expect(win.locator('.host-list .host.current')).toContainText('sw-console')

@@ -1,5 +1,7 @@
 // Small inline icon set (16px grid, stroke = currentColor).
 
+import { useId } from 'react'
+
 type P = { size?: number; className?: string }
 
 const Svg = ({ size = 16, className, children }: P & { children: React.ReactNode }) => (
@@ -58,13 +60,26 @@ export const IconFolder = ({ open, ...p }: P & { open?: boolean }) => (
   </Svg>
 )
 
-export const IconServer = (p: P) => (
-  <Svg {...p}>
-    <rect x="2" y="2.5" width="12" height="4.5" rx="1" />
-    <rect x="2" y="9" width="12" height="4.5" rx="1" />
-    <path d="M4.5 4.75h.01M4.5 11.25h.01" strokeWidth={2} />
-  </Svg>
-)
+export const IconServer = (p: P) => {
+  // Two-tone and filled like the folder: a lighter top unit, a solid bottom one,
+  // each with a status light and vent slots punched through.
+  const id = useId()
+  return (
+    <Svg {...p}>
+      <mask id={id}>
+        <rect width="16" height="16" fill="#fff" stroke="none" />
+        <g stroke="#000" strokeWidth={1.3}>
+          <path d="M4.6 4.85h.01M4.6 11.15h.01" strokeWidth={1.9} />
+          <path d="M8 4.85h4M8 11.15h4" />
+        </g>
+      </mask>
+      <g stroke="none" fill="currentColor" mask={`url(#${id})`}>
+        <rect opacity={0.5} x="1.75" y="2.1" width="12.5" height="5.5" rx="1.6" />
+        <rect x="1.75" y="8.4" width="12.5" height="5.5" rx="1.6" />
+      </g>
+    </Svg>
+  )
+}
 
 export const IconChevron = ({ open, ...p }: P & { open?: boolean }) => (
   <Svg {...p}>

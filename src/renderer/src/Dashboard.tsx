@@ -204,7 +204,7 @@ export default function Dashboard(p: Props) {
 
   const hostIcon = (h: HostView) => (
     <span className={`dh-icon ${h.legacy ? 'legacy' : ''} ${isSerial(h) ? 'serial' : ''} ${live.has(h.id) ? 'live' : ''}`}>
-      {isSerial(h) ? <IconPlug size={16} /> : <IconServer size={16} />}
+      {isSerial(h) ? <IconPlug size={16} /> : <IconServer size={18} />}
     </span>
   )
 
