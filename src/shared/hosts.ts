@@ -8,7 +8,13 @@ export const portName = (path: string): string => path.replace(/^\/dev\//, '')
 /** One-line address: "admin@10.0.0.1:2222" or "cu.usbserial-A10K · 9600". */
 export function hostAddress(h: Host): string {
   if (isSerial(h) && h.serial) return `${portName(h.serial.path)} · ${h.serial.baudRate}`
-  return `${h.username}@${h.host}${h.port !== 22 ? `:${h.port}` : ''}`
+  return `${h.username}@${hostEndpoint(h)}`
+}
+
+/** Like hostAddress without the user: "10.0.0.1", or "10.0.0.1:2222" off port 22. */
+export function hostEndpoint(h: Host): string {
+  if (isSerial(h) && h.serial) return hostAddress(h)
+  return `${h.host}${h.port !== 22 ? `:${h.port}` : ''}`
 }
 
 /** "9600 8N1" style line settings. */

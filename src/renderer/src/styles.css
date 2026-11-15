@@ -2527,8 +2527,20 @@ kbd {
   line-height: 1.25;
 }
 
+/* The host open in the active tab: accent tint and a bar on the left, unlike hover's grey. */
 .side-row.current {
-  background: var(--panel-2);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.side-row.current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 .host-name {

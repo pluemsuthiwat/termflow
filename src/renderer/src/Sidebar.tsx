@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { hostAddress } from '../../shared/hosts'
+import { hostAddress, hostEndpoint } from '../../shared/hosts'
 import type { HostView, SerialPortInfo } from '../../shared/types'
 import ContextMenu, { type MenuItem, type MenuState } from './ContextMenu'
 import { deleteEffect, UNGROUPED } from './Dashboard'
@@ -185,7 +185,7 @@ export default function Sidebar(p: Props) {
             <span className="host-label">{name}</span>
             {h.legacy && <span className="badge">legacy</span>}
           </div>
-          <div className="host-sub">{hostAddress(h)}</div>
+          <div className="host-sub">{hostEndpoint(h)}</div>
         </div>
         <button
           className="row-more"
