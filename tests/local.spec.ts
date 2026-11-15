@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test'
-import fs from 'node:fs'
 import os from 'node:os'
-import path from 'node:path'
 import { activeTerm, confirmClose, expectReady, launchApp, menu, newDataDir, typeLine, type Launched } from './helpers'
 
 // A plain shell so the test doesn't depend on the user's zsh setup.
@@ -76,53 +74,8 @@ test.describe('local terminal', () => {
   })
 })
 
-/** A folder with zsh startup files that each print their name, plus an alias in .zshrc. */
-function zshFiles(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'termflow-zdot-'))
-  for (const f of ['zshenv', 'zprofile', 'zshrc', 'zlogin']) fs.writeFileSync(path.join(dir, `.${f}`), `print -n "${f} "\n`)
-  fs.appendFileSync(path.join(dir, '.zshrc'), "alias hi='echo hello-from-alias'\n")
-  return dir
-}
-
-// macOS 27 hides MAC addresses from Termflow's shells; zsh tabs get network tools that don't.
-test.describe('local zsh network tools', () => {
+test.describe('closing local shells', () => {
   test.skip(process.platform !== 'darwin', 'macOS only')
-
-  test('your startup files run in order and ZDOTDIR/HISTFILE are yours afterwards', async () => {
-    const zdot = zshFiles()
-    ui = await launchApp(newDataDir(), { TERMFLOW_LOCAL_SHELL: '/bin/zsh', ZDOTDIR: zdot })
-    const { win } = ui
-    await win.getByRole('button', { name: 'New terminal' }).click()
-    await expectReady(win)
-    await expect(activeTerm(win)).toContainText('zshenv zprofile zshrc zlogin')
-
-    await typeLine(win, 'hi; echo "z=[$ZDOTDIR] h=[$HISTFILE] w=[$(whence -p ifconfig)] t=[${(k)parameters[(I)TERMFLOW_(USER_|)ZDOTDIR*|TERMFLOW_NETSHIM*]}]"')
-    await expect(activeTerm(win)).toContainText('hello-from-alias')
-    await expect(activeTerm(win)).toContainText(`z=[${zdot}] h=[${zdot}/.zsh_history]`)
-    await expect(activeTerm(win)).toContainText(/w=\[\S*\/netshim\/bin\/ifconfig\] t=\[\]/)
-  })
-
-  test('without ZDOTDIR it stays unset; ifconfig shows real MACs and Ctrl+C works', async () => {
-    const home = zshFiles()
-    ui = await launchApp(newDataDir(), { TERMFLOW_LOCAL_SHELL: '/bin/zsh', HOME: home, ZDOTDIR: undefined })
-    const { win } = ui
-    await win.getByRole('button', { name: 'New terminal' }).click()
-    await expectReady(win)
-    await expect(activeTerm(win)).toContainText('zshenv zprofile zshrc zlogin')
-
-    await typeLine(win, 'echo "z=[${ZDOTDIR-unset}] h=[$HISTFILE]"; ifconfig | grep -m1 ether | sed "s/^/mac=/"')
-    await expect(activeTerm(win)).toContainText(`z=[unset] h=[${home}/.zsh_history]`)
-    await expect(activeTerm(win)).toContainText(/mac=\s*ether [0-9a-f:]{17}/)
-    await expect(activeTerm(win)).not.toContainText('02:00:00:00:00:00')
-
-    // Runs on a pty of its own (line by line), and Ctrl+C stops it like a normal program.
-    await typeLine(win, 'netstat -w 1')
-    await expect(activeTerm(win)).toContainText('packets')
-    await win.keyboard.press('Control+C')
-    await win.waitForTimeout(500)
-    await typeLine(win, 'echo "code=$? $(stty -a | grep -o -- "-*icanon")"')
-    await expect(activeTerm(win)).toContainText('code=130 icanon')
-  })
 
   test('closing a shell running a program asks first: tab ✕, pane ✕ and ⌘W; Cancel keeps it', async () => {
     ui = await launchApp(newDataDir(), SHELL)

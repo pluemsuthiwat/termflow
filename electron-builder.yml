@@ -13,10 +13,6 @@ asar: true
 # node-pty runs its spawn-helper as a program: it has to live outside app.asar.
 asarUnpack:
   - node_modules/node-pty/**
-# Network tools for local zsh tabs (Contents/Resources/netshim), see src/main/local.ts.
-extraResources:
-  - from: resources/netshim
-    to: netshim
 mac:
   target:
     - target: dmg
