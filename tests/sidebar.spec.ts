@@ -166,7 +166,8 @@ test.describe('Default group', () => {
     await win.getByLabel('Search hosts or connect').fill('ops@10.9.9.9')
     await win.getByLabel('Search hosts or connect').press('Enter')
     await win.locator('.modal').getByRole('button', { name: 'Cancel' }).click()
-    await expect(win.locator('.host-list section[data-group="Default"] .host-name')).toHaveText(['10.9.9.9', 'loose'])
+    await expect(win.locator('.host-list section[data-group="Default"] .host-name')).toHaveText(['Untitled', 'loose'])
+    await expect(win.locator('.host-list section[data-group="Default"] .host-sub').first()).toHaveText('10.9.9.9')
     expect(hostsFile(dataDir).map((h) => h.group)).toEqual(['', ''])
 
     await win.locator('.host-list .side-group', { hasText: 'Default' }).click({ button: 'right' })
@@ -181,6 +182,17 @@ test.describe('Default group', () => {
     await win.locator('.modal').getByRole('button', { name: 'Create group' }).click()
     await expect(win.locator('.modal .error')).toHaveText('"Default" is a built-in group; choose another name')
   })
+})
+
+test('a host without a label shows "Untitled"; a label older versions copied from the IP counts as none', async () => {
+  const { win } = await start([host(22, { name: '127.0.0.1', group: 'Lab' }), host(22, { name: 'core-sw', group: 'Lab' })])
+  const rows = win.locator('.host-list .host')
+  await expect(rows.locator('.host-label')).toHaveText(['Untitled', 'core-sw'])
+  await expect(rows.locator('.host-label.untitled')).toHaveCount(1)
+  // Editing it shows an empty label rather than the IP.
+  await rows.filter({ hasText: 'Untitled' }).click({ button: 'right' })
+  await win.getByRole('menuitem', { name: /Edit/ }).click()
+  await expect(win.locator('.modal label', { hasText: 'Label' }).locator('input')).toHaveValue('')
 })
 
 test('the host being worked on stays marked while its menu, edit or delete dialog is open', async () => {

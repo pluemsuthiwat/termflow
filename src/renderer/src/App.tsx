@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isSerial, lineSettings, portName } from '../../shared/hosts'
+import { hasLabel, isSerial, lineSettings, portName, shortName } from '../../shared/hosts'
 import {
   AUTH_FAILED,
   DEFAULT_SERIAL,
@@ -10,10 +10,12 @@ import {
   type PromptRequest,
   type SerialPortInfo,
   type SerialSettings,
+  type TftpState,
   type UpdateCheck
 } from '../../shared/types'
 import { isWithin, joinPath, nameOf, parentOf, rebase } from '../../shared/groups'
 import { AboutDialog } from './About'
+import { TftpDialog } from './Tftp'
 import Dashboard from './Dashboard'
 import { CloseSessionsDialog, CONSOLE_BAUDS, ConsoleDialog, FontDialog, GroupDialog, HostForm, PasswordDialog, PromptDialog, loadLastConsole } from './dialogs'
 import { IconGrid, IconPlug, IconPlus, IconSidebar, IconSplit } from './icons'
@@ -103,7 +105,7 @@ function parseQuick(s: string): HostInput | null {
   const m = s.trim().match(/^(?:([^@\s]+)@)?([^\s:@]+|\[[^\]]+\])(?::(\d+))?$/)
   if (!m) return null
   const host = m[2].replace(/^\[|\]$/g, '')
-  return { ...emptyHost, name: host, host, username: m[1] ?? '', port: m[3] ? Number(m[3]) : 22, group: '' }
+  return { ...emptyHost, name: '', host, username: m[1] ?? '', port: m[3] ? Number(m[3]) : 22, group: '' }
 }
 
 export default function App() {
@@ -179,6 +181,8 @@ export default function App() {
   }
   const [version, setVersion] = useState('')
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [tftp, setTftp] = useState<TftpState | null>(null)
+  const [tftpOpen, setTftpOpen] = useState(false)
   // Latest release check (from the About dialog or the quiet check after launch).
   const [update, setUpdate] = useState<UpdateCheck | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
@@ -222,6 +226,8 @@ export default function App() {
     // Start in a shell on this Mac; SSH hosts are a ⌘0 away on the dashboard.
     window.shell.openTerminalAtLaunch().then((open) => open && openLocal())
     const offUpdate = window.shell.onUpdateAvailable(setUpdate)
+    window.shell.tftpState().then(setTftp)
+    const offTftp = window.shell.onTftp(setTftp)
     window.shell.listSerialPorts().then(setSerialPorts)
     const offPorts = window.shell.onSerialPorts((ports, added) => {
       setSerialPorts(ports)
@@ -255,6 +261,7 @@ export default function App() {
       offPrompt()
       offPorts()
       offUpdate()
+      offTftp()
     }
   }, [reload])
 
@@ -288,7 +295,7 @@ export default function App() {
     addTab(
       {
         hostId: host.id,
-        title: host.name || host.host || (serial ? portName(serial.path) : ''),
+        title: serial ? host.name || portName(serial.path) : shortName(host),
         secret,
         kind: serial ? 'serial' : 'ssh',
         detail: serial ? `${portName(serial.path)} · ${lineSettings(serial)}` : undefined
@@ -637,6 +644,7 @@ export default function App() {
       else if (action === 'back' && activeId === null && dashPath) setDashPath(parentOf(dashPath))
       else if (action === 'toggleSidebar') toggleSidebar()
       else if (action === 'about') setAboutOpen(true)
+      else if (action === 'tftp') setTftpOpen(true)
       else if (action === 'checkUpdate') {
         setAboutOpen(true)
         if (!checkingUpdate) void checkForUpdate()
@@ -670,7 +678,7 @@ export default function App() {
   // Actions shared by the sidebar and the dashboard.
   const editHost = (h: HostView) => setEditing({ ...h })
   const duplicateHost = ({ id: _id, hasSecret: _s, lastConnectedAt: _l, ...rest }: HostView) =>
-    setEditing({ ...rest, name: `${rest.name || rest.host} copy` })
+    setEditing({ ...rest, name: hasLabel(rest) ? `${rest.name} copy` : '' })
   const deleteHost = async (h: HostView) => {
     await window.shell.deleteHost(h.id)
     await reload()
@@ -829,6 +837,17 @@ export default function App() {
               )
             })}
           </ScrollRow>
+          {tftp?.running && (
+            <button
+              className="tabbar-btn tftp-chip"
+              onClick={() => setTftpOpen(true)}
+              title={`TFTP server is running on port ${tftp.port}`}
+              aria-label="TFTP server"
+            >
+              <span className={`tftp-chip-dot ${tftp.transfers.some((t) => t.state === 'active') ? 'busy' : ''}`} />
+              TFTP
+            </button>
+          )}
           <button
             className="tabbar-btn split-btn"
             onClick={(e) => (picker ? setPicker(null) : openPicker(e.currentTarget))}
@@ -862,6 +881,8 @@ export default function App() {
               version={version}
               updateVersion={update?.state === 'available' ? update.latest : undefined}
               onAbout={() => setAboutOpen(true)}
+              tftpRunning={!!tftp?.running}
+              onOpenTftp={() => setTftpOpen(true)}
             />
           )}
           {/* Flat and keyed by session, so splitting or closing a neighbour never remounts (disconnects) a pane. */}
@@ -1050,6 +1071,7 @@ export default function App() {
         />
       )}
       {fontOpen && <FontDialog initial={font} onCancel={() => setFontOpen(false)} onSave={(f) => (setFont(() => f), setFontOpen(false))} />}
+      {tftpOpen && tftp && <TftpDialog state={tftp} onChange={setTftp} onClose={() => setTftpOpen(false)} />}
       {aboutOpen && (
         <AboutDialog
           update={update}

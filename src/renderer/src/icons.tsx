@@ -201,6 +201,52 @@ export const IconDownload = (p: P) => (
   </Svg>
 )
 
+export const IconUpload = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 10.5V2M4.5 5.5 8 2l3.5 3.5M2.5 13.5h11" />
+  </Svg>
+)
+
+/** Arrows both ways: files going to and from this Mac (TFTP). */
+export const IconTransfer = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 13V3M2.5 5.5 5 3l2.5 2.5M11 3v10M8.5 10.5 11 13l2.5-2.5" />
+  </Svg>
+)
+
+export const IconEdit = (p: P) => (
+  <Svg {...p}>
+    <path d="M10.5 2.5 13.5 5.5 6 13H3v-3l7.5-7.5ZM9 4l3 3" />
+  </Svg>
+)
+
+export const IconCopy = (p: P) => (
+  <Svg {...p}>
+    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+    <path d="M10.5 5.5V4a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
+  </Svg>
+)
+
+export const IconWifi = (p: P) => (
+  <Svg {...p}>
+    <path d="M1.5 6a9.5 9.5 0 0 1 13 0M3.75 8.5a6.3 6.3 0 0 1 8.5 0M6 11a3 3 0 0 1 4 0M8 13.25h.01" />
+  </Svg>
+)
+
+/** An Ethernet jack. */
+export const IconEthernet = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.5 4.5h11v6.5h-2.5v2.5H5V11H2.5Z" />
+    <path d="M5.5 7v1.5M8 7v1.5M10.5 7v1.5" />
+  </Svg>
+)
+
+export const IconShield = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 1.75 13 3.5v4c0 3.2-2.2 5.6-5 6.75C5.2 13.1 3 10.7 3 7.5v-4Z" />
+  </Svg>
+)
+
 export const IconRefresh = (p: P) => (
   <Svg {...p}>
     <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2v3h-3" />

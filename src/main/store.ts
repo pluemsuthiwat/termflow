@@ -19,6 +19,7 @@ import type { Host, HostInput, HostView } from '../shared/types'
 //   groups.json       group names, so empty groups survive
 //   secrets.json      passwords / key passphrases, encrypted with a Keychain-held key
 //   known_hosts.json  trusted host-key fingerprints, keyed by "host:port"
+//   tftp.json         the TFTP server's folder
 //   logs/ssh/         SSH session logs
 //   logs/console/     console (serial) session logs
 export const dataDir = (): string => app.getPath('userData')
@@ -210,4 +211,15 @@ export function setKnownHost(hostPort: string, entry: KnownHost): void {
   const all = readJson<Record<string, KnownHost>>('known_hosts.json', {})
   all[hostPort] = entry
   writeJsonAtomic('known_hosts.json', all)
+}
+
+// ---- TFTP ----
+
+/** The folder devices read from and write to; ~/Termflow TFTP until the user picks another. */
+export function tftpRoot(): string {
+  return readJson<{ root?: string }>('tftp.json', {}).root || path.join(app.getPath('home'), 'Termflow TFTP')
+}
+
+export function setTftpRoot(root: string): void {
+  writeJsonAtomic('tftp.json', { root })
 }

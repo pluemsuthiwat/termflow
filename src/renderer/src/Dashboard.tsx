@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { nameOf, parentOf } from '../../shared/groups'
-import { hostAddress, isSerial } from '../../shared/hosts'
+import { displayName, hasLabel, hostAddress, isSerial, shortName } from '../../shared/hosts'
 import type { HostView, SerialPortInfo } from '../../shared/types'
 import ContextMenu, { type MenuItem, type MenuState } from './ContextMenu'
 import { ConfirmDialog } from './dialogs'
@@ -20,6 +20,7 @@ import {
   IconSearch,
   IconServer,
   IconTerminal,
+  IconTransfer,
   IconWarn
 } from './icons'
 import ScrollRow from './ScrollRow'
@@ -55,6 +56,8 @@ interface Props {
   serialPorts: SerialPortInfo[]
   onOpenPort: (port: SerialPortInfo) => void
   onOpenConsole: () => void
+  tftpRunning: boolean
+  onOpenTftp: () => void
 }
 
 type HostLayout = 'grid' | 'list'
@@ -223,7 +226,7 @@ export default function Dashboard(p: Props) {
       className="dh-card"
       role="button"
       tabIndex={0}
-      aria-label={`Connect to ${h.name || h.host}`}
+      aria-label={`Connect to ${shortName(h)}`}
       onClick={() => p.onConnect(h)}
       onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && p.onConnect(h)}
       onContextMenu={(e) => openMenu(e, hostItems(h))}
@@ -231,10 +234,10 @@ export default function Dashboard(p: Props) {
       <div className="dh-card-top">
         {hostIcon(h)}
         <div className="dh-card-title">
-          <span className="card-name">{h.name || h.host}</span>
+          <span className={`card-name ${hasLabel(h) ? '' : 'untitled'}`}>{displayName(h)}</span>
           <span className="card-target">{address(h)}</span>
         </div>
-        {moreBtn(`Actions for ${h.name || h.host}`, hostItems(h))}
+        {moreBtn(`Actions for ${shortName(h)}`, hostItems(h))}
       </div>
       {showPath && h.group && <div className="dh-path">{crumbText(h.group)}</div>}
       <div className="card-meta">
@@ -265,7 +268,7 @@ export default function Dashboard(p: Props) {
                 key={h.id}
                 className="dh-row"
                 tabIndex={0}
-                aria-label={`Connect to ${h.name || h.host}`}
+                aria-label={`Connect to ${shortName(h)}`}
                 onClick={() => p.onConnect(h)}
                 onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && p.onConnect(h)}
                 onContextMenu={(e) => openMenu(e, hostItems(h))}
@@ -274,7 +277,7 @@ export default function Dashboard(p: Props) {
                   <div className="dh-name-cell">
                     {hostIcon(h)}
                     <div className="dh-name-text">
-                      <div className="card-name">{h.name || h.host}</div>
+                      <div className={`card-name ${hasLabel(h) ? '' : 'untitled'}`}>{displayName(h)}</div>
                       {showPath && h.group && <div className="dh-path">{crumbText(h.group)}</div>}
                     </div>
                   </div>
@@ -285,7 +288,7 @@ export default function Dashboard(p: Props) {
                   {h.legacy && <span className="chip warn">legacy</span>}
                 </td>
                 <td className="muted">{when(h)}</td>
-                <td className="dh-actions-cell">{moreBtn(`Actions for ${h.name || h.host}`, hostItems(h))}</td>
+                <td className="dh-actions-cell">{moreBtn(`Actions for ${shortName(h)}`, hostItems(h))}</td>
               </tr>
             ))}
           </tbody>
@@ -352,6 +355,13 @@ export default function Dashboard(p: Props) {
           </button>
           <button className="btn with-icon console-btn" onClick={p.onOpenConsole} title="Open a console session">
             <IconPlug size={14} /> Console
+          </button>
+          <button
+            className={`btn with-icon tftp-btn ${p.tftpRunning ? 'on' : ''}`}
+            onClick={p.onOpenTftp}
+            title={p.tftpRunning ? 'TFTP server is running' : 'TFTP server: share files with devices'}
+          >
+            <IconTransfer size={14} /> TFTP
           </button>
           <div className="split-btn">
             <button className="btn primary with-icon" onClick={() => p.onNewHost(path)}>
@@ -497,7 +507,7 @@ export default function Dashboard(p: Props) {
                   <button key={h.id} className="recent" onClick={() => p.onConnect(h)} title={`Connect to ${address(h)}`}>
                     {hostIcon(h)}
                     <span className="recent-text">
-                      <span className="recent-name">{h.name || h.host}</span>
+                      <span className="recent-name">{shortName(h)}</span>
                       <span className="recent-when">{live.has(h.id) ? 'Connected' : timeAgo(h.lastConnectedAt)}</span>
                     </span>
                   </button>
@@ -639,7 +649,7 @@ export default function Dashboard(p: Props) {
           title="Delete host?"
           message={
             <>
-              <b>{confirm.host.name || confirm.host.host}</b> ({address(confirm.host)}) and its saved password will be removed.
+              <b>{displayName(confirm.host)}</b> ({address(confirm.host)}) and its saved password will be removed.
             </>
           }
           confirmLabel="Delete host"

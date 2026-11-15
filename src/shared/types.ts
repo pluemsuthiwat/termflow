@@ -23,6 +23,51 @@ export const DEFAULT_SERIAL: Omit<SerialSettings, 'path'> = {
   flowControl: 'none'
 }
 
+/** One file a device read from (get) or wrote to (put) the TFTP server. */
+export interface TftpTransfer {
+  id: string
+  /** Device IP. */
+  peer: string
+  /** Path inside the TFTP folder, as the device asked for it. */
+  file: string
+  direction: 'get' | 'put'
+  bytes: number
+  /** Total bytes when known (reads, or uploads that announce their size). */
+  size?: number
+  state: 'active' | 'done' | 'failed'
+  error?: string
+  started: number
+  ended?: number
+}
+
+/** An IPv4 address of this Mac that devices can use. */
+export interface TftpAddress {
+  /** Device, e.g. "en0". */
+  name: string
+  address: string
+  /** Subnet prefix length, e.g. 24. */
+  prefix?: number
+  /** "Wi-Fi", "USB 10/100/1000 LAN", "VPN", or the device name. */
+  label: string
+  kind: 'wifi' | 'wired' | 'vpn'
+}
+
+export interface TftpState {
+  running: boolean
+  port: number
+  root: string
+  /** The user's home folder, to show the root as "~/…". */
+  home: string
+  /** Why the server could not start. */
+  error?: string
+  /** macOS's own tftpd holds port 69; it can be turned off with an admin password. */
+  builtinBlocking: boolean
+  /** IPv4 addresses devices can reach this Mac on. */
+  addresses: TftpAddress[]
+  /** Newest first. */
+  transfers: TftpTransfer[]
+}
+
 /** A serial port found on this Mac. */
 export interface SerialPortInfo {
   path: string
@@ -139,6 +184,7 @@ export interface AppInfo {
 /** Menu items handled by the page; `arg` is a tab index (selectTab) or a direction (focusPane). */
 export type MenuAction =
   | 'closeTab'
+  | 'tftp'
   | 'selectTab'
   | 'newHost'
   | 'home'
@@ -198,6 +244,18 @@ export interface ShellApi {
   /** Fires when ports appear or disappear; `added` excludes ports present at startup. */
   onSerialPorts(cb: (ports: SerialPortInfo[], added: SerialPortInfo[]) => void): () => void
   sendBreak(sessionId: string): void
+
+  /** Put text on the clipboard (the page itself has no clipboard access). */
+  copyText(text: string): Promise<void>
+  tftpState(): Promise<TftpState>
+  tftpStart(): Promise<TftpState>
+  tftpStop(): Promise<TftpState>
+  /** Pick the TFTP folder in a Finder dialog; unchanged when cancelled. */
+  tftpChooseRoot(): Promise<TftpState>
+  tftpOpenRoot(): Promise<void>
+  /** Turn off macOS's built-in tftpd (asks for an admin password), then start. */
+  tftpDisableBuiltin(): Promise<TftpState>
+  onTftp(cb: (state: TftpState) => void): () => void
 
   /** Authenticate without opening a shell; a tab then calls connect() with the same sessionId. */
   login(req: LoginRequest): Promise<void>

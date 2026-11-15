@@ -2,6 +2,24 @@ import type { Host } from './types'
 
 export const isSerial = (h: Pick<Host, 'kind'>): boolean => h.kind === 'serial'
 
+/** Shown in place of a label the user left empty. */
+export const UNTITLED = 'Untitled'
+
+/**
+ * Whether the user gave this host a label. Older versions saved the IP as the label when none
+ * was typed, so a label equal to the IP counts as none.
+ */
+export function hasLabel(h: Pick<Host, 'name' | 'host' | 'kind'>): boolean {
+  const name = h.name.trim()
+  return !!name && (isSerial(h) || name !== h.host)
+}
+
+/** The label, or "Untitled": for places that show the address next to it. */
+export const displayName = (h: Pick<Host, 'name' | 'host' | 'kind'>): string => (hasLabel(h) ? h.name : UNTITLED)
+
+/** The label, or the IP: for places with nothing else to tell hosts apart (tabs, Recent). */
+export const shortName = (h: Pick<Host, 'name' | 'host' | 'kind'>): string => (hasLabel(h) ? h.name : h.host)
+
 /** "cu.usbserial-A10K" from "/dev/cu.usbserial-A10K". */
 export const portName = (path: string): string => path.replace(/^\/dev\//, '')
 

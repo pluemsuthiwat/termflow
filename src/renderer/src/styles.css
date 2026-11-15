@@ -2790,3 +2790,401 @@ button.rec:hover {
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* ---- TFTP server ---- */
+
+.tftp-btn svg {
+  color: var(--ok);
+}
+
+.tftp-btn.on {
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+}
+
+/* In the tab bar while the server runs: opens the panel from any tab. */
+.tftp-chip {
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ok);
+}
+
+.tftp-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent);
+}
+
+.tftp-chip-dot.busy {
+  animation: tftp-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tftp-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.tftp {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tftp-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.tftp-status.on {
+  border-color: color-mix(in srgb, var(--ok) 35%, var(--border));
+}
+
+.tftp-status-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tftp-status-text span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tftp-alert {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  font-size: 12.5px;
+}
+
+.tftp-alert svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tftp-alert-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* The folder devices use: name and path, with its two actions as real buttons. */
+.tftp-folder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.tftp-folder-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  color: var(--accent);
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    color-mix(in srgb, var(--accent) 8%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.tftp-folder-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tftp-folder-text b {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tftp-path {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tftp-folder-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tftp-folder-actions .btn {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
+.tftp-folder-actions svg {
+  color: var(--muted);
+}
+
+.tftp-section-head {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Addresses of this Mac as cards: click one to copy its IP. */
+.tftp-addresses {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.tftp-addr {
+  --tint: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 10px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.tftp-addr.wifi {
+  --tint: #2ac3de;
+}
+
+.tftp-addr.vpn {
+  --tint: var(--muted);
+}
+
+.tftp-addr:hover,
+.tftp-addr:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--tint) 55%, var(--border));
+  background: color-mix(in srgb, var(--tint) 6%, var(--bg));
+}
+
+.tftp-addr.copied {
+  border-color: color-mix(in srgb, var(--ok) 60%, var(--border));
+}
+
+.tftp-addr-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  color: var(--tint);
+  background: color-mix(in srgb, var(--tint) 14%, transparent);
+}
+
+.tftp-addr-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tftp-addr-ip {
+  font: 600 13px Menlo, monospace;
+  color: var(--text);
+}
+
+.tftp-addr-ip small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.tftp-addr-label {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tftp-addr-copy {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.tftp-addr.copied .tftp-addr-label {
+  color: var(--ok);
+}
+
+.tftp-addr:hover .tftp-addr-copy {
+  opacity: 1;
+}
+
+.tftp-addr.copied .tftp-addr-copy {
+  color: var(--ok);
+  opacity: 1;
+}
+
+.tftp-example {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.tftp-example code {
+  font: 12px Menlo, monospace;
+  color: var(--text);
+  user-select: text;
+}
+
+.tftp-transfers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.tftp-transfer {
+  display: flex;
+  gap: 10px;
+  padding: 9px 12px;
+}
+
+.tftp-transfer + .tftp-transfer {
+  border-top: 1px solid var(--border);
+}
+
+.tftp-dir {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.tftp-dir.put {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.tftp-transfer.failed .tftp-dir {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.tftp-transfer-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tftp-transfer-line {
+  display: flex;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.tftp-file {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: Menlo, monospace;
+}
+
+.tftp-bytes {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tftp-transfer-sub {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.tftp-error {
+  color: var(--danger);
+}
+
+.tftp-progress {
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+
+.tftp-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+/* Uploads that don't announce their size: a sliding bar instead of a percentage. */
+.tftp-progress.unknown span {
+  width: 30%;
+  animation: tftp-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes tftp-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+.tftp-empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}

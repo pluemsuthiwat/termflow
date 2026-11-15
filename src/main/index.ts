@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   Menu,
@@ -21,6 +22,7 @@ import * as serial from './serial'
 import { attach } from './session-io'
 import * as ssh from './ssh'
 import * as store from './store'
+import * as tftp from './tftp'
 import * as update from './update'
 
 // Lets tests (or a second profile) use a separate data directory.
@@ -114,7 +116,7 @@ function confirmCloseWithSessions(win: BrowserWindow): void {
   let asking = false
   win.on('close', (e) => {
     if (confirmed || process.env.TERMFLOW_NO_QUIT_CONFIRM === '1') return
-    const open = [...ssh.active(), ...serial.active(), ...local.active()]
+    const open = [...ssh.active(), ...serial.active(), ...local.active(), ...tftp.active()]
     if (!open.length) return
     e.preventDefault()
     if (asking) return
@@ -239,6 +241,26 @@ handle('serial:list', () => serial.listPorts())
 on('serial:break', (id: string) => void serial.sendBreak(id))
 on('ssh:answer', (requestId: string, answer: PromptAnswer) => ssh.answerPrompt(requestId, answer))
 
+// TFTP: the folder is only ever picked here, in a dialog of the main process.
+handle('app:copyText', (text: string) => clipboard.writeText(String(text).slice(0, 4096)))
+handle('tftp:state', () => tftp.state())
+handle('tftp:start', () => tftp.start())
+handle('tftp:stop', () => tftp.stop())
+handle('tftp:disableBuiltin', () => tftp.disableBuiltin())
+handle('tftp:openRoot', () => {
+  fs.mkdirSync(store.tftpRoot(), { recursive: true })
+  return shell.openPath(store.tftpRoot())
+})
+handle('tftp:chooseRoot', async () => {
+  const res = await dialog.showOpenDialog({
+    title: 'Choose TFTP folder',
+    defaultPath: store.tftpRoot(),
+    buttonLabel: 'Use Folder',
+    properties: ['openDirectory', 'createDirectory']
+  })
+  return res.canceled || !res.filePaths[0] ? tftp.state() : tftp.setRoot(res.filePaths[0])
+})
+
 function buildMenu(): void {
   const toRenderer = (action: MenuAction, arg?: number | string) => () =>
     (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0])?.webContents.send('menu', action, arg)
@@ -268,6 +290,7 @@ function buildMenu(): void {
         { label: 'Search Hosts', accelerator: 'CmdOrCtrl+K', click: toRenderer('search') },
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: toRenderer('closeTab') },
         { label: 'Send Break', accelerator: 'CmdOrCtrl+B', click: toRenderer('sendBreak') },
+        { label: 'TFTP Server…', click: toRenderer('tftp') },
         { type: 'separator' },
         { label: 'Split With…', accelerator: 'CmdOrCtrl+T', click: toRenderer('splitWith') },
         { label: 'Split Right', accelerator: 'CmdOrCtrl+D', click: toRenderer('splitRight') },
@@ -359,5 +382,6 @@ app.on('window-all-closed', () => {
   ssh.closeAll()
   serial.closeAll()
   local.closeAll()
+  tftp.stop()
   app.quit()
 })

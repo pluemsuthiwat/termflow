@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { hostAddress, hostEndpoint } from '../../shared/hosts'
+import { displayName, hasLabel, hostAddress, hostEndpoint } from '../../shared/hosts'
 import type { HostView, SerialPortInfo } from '../../shared/types'
 import ContextMenu, { type MenuItem, type MenuState } from './ContextMenu'
 import { deleteEffect, UNGROUPED } from './Dashboard'
@@ -166,7 +166,7 @@ export default function Sidebar(p: Props) {
 
   const hostRow = (h: HostView, depth: number) => {
     const live = p.liveHostIds.has(h.id)
-    const name = h.name || h.host
+    const name = displayName(h)
     return (
       <div
         key={h.id}
@@ -182,7 +182,7 @@ export default function Sidebar(p: Props) {
         <span className={`status-dot ${live ? 'live' : ''}`} title={live ? 'Connected' : 'Not connected'} />
         <div className="host-main">
           <div className="host-name">
-            <span className="host-label">{name}</span>
+            <span className={`host-label ${hasLabel(h) ? '' : 'untitled'}`}>{name}</span>
             {h.legacy && <span className="badge">legacy</span>}
           </div>
           <div className="host-sub">{hostEndpoint(h)}</div>
@@ -358,7 +358,7 @@ export default function Sidebar(p: Props) {
           title="Delete host?"
           message={
             <>
-              <b>{confirm.host.name || confirm.host.host}</b> ({hostAddress(confirm.host)}) and its saved password will be
+              <b>{displayName(confirm.host)}</b> ({hostAddress(confirm.host)}) and its saved password will be
               removed.
             </>
           }

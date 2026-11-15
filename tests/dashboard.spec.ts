@@ -171,8 +171,10 @@ test.describe('inside a group', () => {
     await modal(win).locator('label', { hasText: 'Host / IP' }).locator('input').fill('10.10.1.1')
     await modal(win).locator('label', { hasText: 'Username' }).locator('input').fill('admin')
     await modal(win).getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(win.locator('.dh-card .card-name')).toHaveText(['10.10.1.1'])
-    expect(hostsFile(dataDir)[0].group).toBe('Bangkok HQ/Building 1')
+    // No label typed: "Untitled" over the address, and no label saved.
+    await expect(win.locator('.dh-card .card-name')).toHaveText(['Untitled'])
+    await expect(win.locator('.dh-card .card-target')).toHaveText(['admin@10.10.1.1'])
+    expect(hostsFile(dataDir)[0]).toMatchObject({ name: '', group: 'Bangkok HQ/Building 1' })
 
     await win.locator('.crumbs').getByRole('button', { name: 'Bangkok HQ' }).click()
     await expect(hero(win).locator('h2')).toHaveText('Bangkok HQ')

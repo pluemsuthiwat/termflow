@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { portName } from '../../shared/hosts'
+import { hasLabel, portName } from '../../shared/hosts'
 import { IconFolder } from './icons'
 import { fadeClass, useScrollEdges } from './scrollEdges'
 import { clampFontSize, DEFAULT_FONT, FONT_FAMILIES, FONT_MAX, FONT_MIN, fontStack, type TermFont } from './font'
@@ -100,7 +100,13 @@ export function HostForm({
   onSave: (h: HostInput, connect: boolean) => void
   onCancel: () => void
 }) {
-  const [h, setH] = useState<HostInput>({ ...initial, kind: initial.kind ?? 'ssh', secret: undefined })
+  // A label older versions filled in with the IP shows as empty, and stays empty on save.
+  const [h, setH] = useState<HostInput>({
+    ...initial,
+    name: hasLabel({ kind: 'ssh', ...initial }) ? initial.name : '',
+    kind: initial.kind ?? 'ssh',
+    secret: undefined
+  })
   const [serial, setSerial] = useState<SerialSettings>(
     initial.serial ?? { ...DEFAULT_SERIAL, path: serialPorts[0]?.path ?? '' }
   )
@@ -147,7 +153,7 @@ export function HostForm({
     if (h.auth === 'key' && !h.keyPath?.trim()) return setError('Choose a private key file')
     const secret = forget ? '' : h.secret || undefined
     onSave(
-      { ...h, serial: undefined, secret, group, host: h.host.trim(), username: h.username.trim(), name: h.name.trim() || h.host.trim() },
+      { ...h, serial: undefined, secret, group, host: h.host.trim(), username: h.username.trim(), name: h.name.trim() },
       connect
     )
   }
@@ -173,7 +179,7 @@ export function HostForm({
             <input
               value={h.name}
               onChange={(e) => set('name', e.target.value)}
-              placeholder={isSerialHost ? 'core-sw-01 console' : 'core-sw-01'}
+              placeholder={isSerialHost ? 'core-sw-01 console' : 'core-sw-01 (optional)'}
               autoFocus
             />
           </label>

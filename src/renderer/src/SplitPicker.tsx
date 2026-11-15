@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { hostAddress, isSerial } from '../../shared/hosts'
+import { displayName, hostAddress, isSerial } from '../../shared/hosts'
 import type { HostView, SerialPortInfo } from '../../shared/types'
 import { IconPlug, IconServer, IconSplit } from './icons'
 import type { Side } from './layout'
@@ -100,7 +100,7 @@ export default function SplitPicker(p: Props) {
       out.push({
         key: `host:${h.id}`,
         target: { kind: 'host', host: h },
-        label: h.name || h.host,
+        label: displayName(h),
         sub: [hostAddress(h), h.group].filter(Boolean).join(' · '),
         icon: isSerial(h) ? 'plug' : 'server',
         live: p.liveHostIds.has(h.id),
